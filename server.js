@@ -141,6 +141,7 @@ function publicUser(u) {
   return {
     id: u.id, name: u.name, avatar: u.avatar, host: u.host,
     balance: u.balance, hacks: u.hacks, rank: getRank(u.hacks),
+    mullvad: !!u.mullvad,
     createdAt: u.createdAt, online: !!u.online
   };
 }
@@ -159,7 +160,7 @@ function hackDuration(pw) {
 app.get('/api/ping', (req, res) => res.json({ ok: true, time: Date.now() }));
 
 app.post('/api/account', (req, res) => {
-  let { id, name, avatar, serverPassword, host, openPort, balance, hacks, createdAt } = req.body || {};
+  let { id, name, avatar, serverPassword, host, openPort, balance, hacks, createdAt, mullvad } = req.body || {};
   if (id && db.banned.includes(id)) {
     return res.status(403).json({ banned: true });
   }
@@ -167,6 +168,7 @@ app.post('/api/account', (req, res) => {
     const u = db.users[id];
     if (name) u.name = String(name).slice(0, 24);
     if (avatar !== undefined) u.avatar = String(avatar).slice(0, 500000);
+    if (mullvad) u.mullvad = true;
     saveData();
     return res.json({ ...publicUser(u), openPort: u.openPort, host: u.host, isNew: false });
   }
@@ -192,6 +194,7 @@ app.post('/api/account', (req, res) => {
     serverPassword: String(serverPassword).slice(0, 64),
     balance: Math.max(0, Math.min(999999999, Number(balance) || 20)),
     hacks: Math.max(0, Math.min(999, Math.floor(Number(hacks) || 0))),
+    mullvad: !!mullvad,
     createdAt: Number(createdAt) || Date.now(),
     online: false
   };
@@ -325,6 +328,20 @@ app.post('/api/leak', (req, res) => {
   res.json({ ok: true, from: publicUser(from) });
 });
 
+// ---- buy permanent Mullvad VPN (10000$) ----
+app.post('/api/buy-mullvad', (req, res) => {
+  const { userId } = req.body || {};
+  const u = db.users[userId];
+  if (!u) return res.status(404).json({ error: 'NOT_FOUND' });
+  if (u.mullvad) return res.json({ balance: u.balance, mullvad: true });
+  if (u.balance < 10000) return res.status(400).json({ error: 'NOT_ENOUGH_MONEY' });
+  u.balance -= 10000;
+  u.mullvad = true;
+  saveData();
+  io.emit('users:list', Object.values(db.users).map(publicUser));
+  res.json({ balance: u.balance, mullvad: true });
+});
+
 // ---- admin (password verified server-side, never shipped to client) ----
 const ADMIN_PASSWORD = 'adminsonly';
 const ADMIN_TOKEN = 'hc-admin-' + crypto.createHash('sha256').update(ADMIN_PASSWORD).digest('hex').slice(0, 16);
@@ -377,9 +394,16 @@ io.on('connection', (socket) => {
     const u = db.users[userId];
     if (u) {
       u.online = true;
+      u.activeTab = true;
       socket.data.userId = userId;
       io.emit('users:list', Object.values(db.users).map(publicUser));
     }
+  });
+
+  // tab visibility: mining only pays while the browser tab is open
+  socket.on('tab:active', ({ userId, active }) => {
+    const u = db.users[userId];
+    if (u) { u.activeTab = !!active; saveData(); }
   });
 
   socket.on('chat:message', (payload, ack) => {
@@ -425,6 +449,8 @@ setInterval(() => {
   const cycles = Math.max(1, Math.floor((now - (db.lastMine || now)) / 10000));
   const pay = Math.min(cycles, 6); // cap per tick to avoid spikes after long sleep
   for (const u of Object.values(db.users)) {
+    // only mine while the user's browser tab is open
+    if (!u.activeTab) continue;
     u.balance += incomeFor(u.hacks || 0) * pay;
     if (u.balance > 999999999) u.balance = 999999999;
     changed = true;
