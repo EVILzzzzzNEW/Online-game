@@ -159,6 +159,39 @@ function hackDuration(pw) {
 
 app.get('/api/ping', (req, res) => res.json({ ok: true, time: Date.now() }));
 
+// server stats for the neofetch / uptime commands
+app.get('/api/stats', (req, res) => {
+  res.json({
+    version: '0.2',
+    uptime: Math.floor(process.uptime()),
+    users: Object.keys(db.users).length,
+    online: Object.values(db.users).filter(u => u.online).length,
+    messages: db.messages.length,
+    mongo: mongoReady ? 'connected' : 'local',
+    node: process.version
+  });
+});
+
+// leaderboard - top users by balance
+app.get('/api/leaderboard', (req, res) => {
+  const list = Object.values(db.users)
+    .map(u => ({ name: u.name, host: u.host, balance: u.balance, hacks: u.hacks, rank: getRank(u.hacks), avatar: u.avatar }))
+    .sort((a, b) => b.balance - a.balance)
+    .slice(0, 20);
+  res.json(list);
+});
+
+// rank lookup for a specific host
+app.get('/api/rank/:host', (req, res) => {
+  const host = String(req.params.host || '').toLowerCase();
+  const u = Object.values(db.users).find(x => x.host.toLowerCase() === host);
+  if (!u) return res.status(404).json({ error: 'HOST_NOT_FOUND' });
+  res.json({
+    name: u.name, host: u.host, balance: u.balance, hacks: u.hacks,
+    rank: getRank(u.hacks), income: incomeFor(u.hacks), online: !!u.online
+  });
+});
+
 app.post('/api/account', (req, res) => {
   let { id, name, avatar, serverPassword, host, openPort, balance, hacks, createdAt, mullvad } = req.body || {};
   if (id && db.banned.includes(id)) {
@@ -428,6 +461,11 @@ io.on('connection', (socket) => {
       io.emit('chat:message', msg);
       if (ack) ack({ ok: true, msg });
     } catch (e) { if (ack) ack({ error: 'FAILED' }); }
+  });
+
+  socket.on('typing', (d) => {
+    if (!d || !d.userId) return;
+    socket.broadcast.emit('typing', { userId: d.userId, name: d.name });
   });
 
   socket.on('disconnect', () => {
