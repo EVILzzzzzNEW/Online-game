@@ -1,4 +1,145 @@
-const $ = (id) => document.getElementById(id);
+// Tab visibility for mining pause
+document.addEventListener('visibilitychange', () => {
+  const active = !document.hidden;
+  if (window.socket && window.socket.data && window.socket.data.userId) {
+    window.socket.emit('tab:active', { userId: window.socket.data.userId, active });
+  }
+});
+// === NETWORK STATE ===
+let internet = { connected: false, ssid: null, password: null };
+let vpn = { active: false, autoOffTimer: null, purchased: false, countries: [] };
+const NETWORKS = [
+  { ssid: 'HackChat-Free-Wifi', auth: true, password: 'hackchat123' },
+  { ssid: 'Student-Network', auth: true, password: 'studeNT42!' },
+  { ssid: 'Guest-Portal', auth: false },
+  { ssid: 'Admin-Router', auth: true, password: 'admin!secure' },
+  { ssid: 'Public-Library', auth: true, password: 'library!access' }
+];
+// Mullvad VPN networks
+const MULLVAD_NETWORKS = [
+  { country: 'United States', code: 'us' },
+  { country: 'Canada', code: 'ca' },
+  { country: 'Germany', code: 'de' },
+  { country: 'Netherlands', code: 'nl' },
+  { country: 'United Kingdom', code: 'gb' },
+  { country: 'Switzerland', code: 'ch' },
+  { country: 'Japan', code: 'jp' },
+  { country: 'Singapore', code: 'sg' }
+];
+// Click internet icon
+$('netStatus').onclick = () => { $('netModal').classList.remove('hidden'); listNetworks(); };
+
+// Mullvad VPN button
+const mullvadBtn = document.createElement('div');
+mullvadBtn.id = 'mullvadBtn';
+mullvadBtn.className = 'mullvad-status';
+mullvadBtn.title = 'Mullvad VPN';
+mullvadBtn.innerHTML = '<span class="mole-icon">🟣</span>';
+mullvadBtn.style.cssText = `
+  position: fixed; right: 50px; top: 10px; width: 24px; height: 24px; border-radius: 50%; 
+  background: #1a1a2e; color: #ffcc00; font-size: 12px; display: flex; align-items: center; 
+  justify-content: center; cursor: pointer; z-index: 60; box-shadow: 0 0 12px rgba(0,0,0,0.5);
+`;
+mullvadBtn.onclick = () => { if (vpn.purchased) toggleVPN(); else showMullvadMenu() };
+document.body.appendChild(mullvadBtn);
+
+function toggleVPN() {
+  vpn.active = !vpn.active;
+  if (vpn.active) {
+    print('mullvad vpn activated ✓', 'ok');
+    print('connected to: United States', 'info');
+    $('vpnStatus').textContent = 'vpn active';
+    mullvadBtn.style.background = '#1a1a2e';
+  } else {
+    print('mullvad vpn disconnected', 'dim');
+    $('vpnStatus').textContent = 'vpn inactive';
+    mullvadBtn.style.background = '#555';
+  }
+}
+
+function showMullvadMenu() {
+  const countries = MULLVAD_NETWORKS.map(n => `<div><span>${n.country}</span><button class="btn-small" onclick="connectToCountry('${n.code}')">Connect</button></div>`).join('');
+  print(`<b>Mullvad VPN Networks</b><br>${countries}`, 'info');
+  print('After purchase, all countries are permanently available', 'dim');
+}
+
+function connectToCountry(code) {
+  vpn.active = true;
+  print(`mullvad vpn connected to ${code.toUpperCase()}`, 'ok');
+  $('vpnStatus').textContent = 'vpn active';
+  // Show all countries now unlocked
+  vpn.purchased = true;
+  print('all mullvad countries now permanently unlocked ✓', 'ok');
+}
+$('netCancelBtn').onclick = () => { $('netModal').classList.add('hidden'); };
+$('netConnectBtn').onclick = attemptConnect;
+function listNetworks() {
+  const box = $('netNetworks'); box.innerHTML = '';
+  NETWORKS.forEach(n => {
+    const div = document.createElement('div'); div.className = 'net-item';
+    div.innerHTML = `<span>${esc(n.ssid)}</span>${n.auth ? `<span class="dim">(password required)</span>` : ''}`;
+    div.onclick = () => { $('netPassword').style.display = n.auth ? 'block' : 'none'; internet.ssid = n.ssid; internet.password = n.password || ''; };
+    box.appendChild(div);
+  });
+}
+$('netPassword').style.display = 'none';
+function attemptConnect() {
+  const pw = $('netPassInput').value || internet.password;
+  if (!internet.ssid) return print('select a network first', 'err');
+  print(`attempting connection to ${internet.ssid}...`, 'info');
+  progressBar('handshaking with ' + internet.ssid, 2000, () => {
+    // 70% chance of success if no password or correct password
+    const success = !internet.ssid.auth || pw === internet.ssid.password;
+    if (success) {
+      internet.connected = true;
+      $('netResult').textContent = 'connected ✓  signal strength: excellent';
+      $('netResult').className = 'ok';
+      print('internet connected: ' + internet.ssid, 'ok');
+      // unlock vpn after internet
+      $('vpnStatus').textContent = 'vpn disabled (internet active)';
+      setTimeout(() => $('netModal').classList.add('hidden'), 1500);
+    } else {
+      print('wrong password. try again or select another network.', 'err');
+      $('netResult').textContent = 'wrong password';
+      $('netResult').className = 'err';
+    }
+  });
+}
+// VPN modal
+$('vpnStatus').onclick = () => { $('vpnModal').classList.remove('hidden'); };
+$('vpnDisconnectBtn').onclick = () => {
+  vpn.active = false;
+  if (vpn.autoOffTimer) clearTimeout(vpn.autoOffTimer);
+  print('vpn disconnected', 'dim');
+  $('vpnStatus').textContent = 'vpn inactive';
+  $('mullvadBtn').style.background = '#555';
+  $('mullvadBtn').innerHTML = '<span class="mole-icon">🟣</span>';
+};
+$('vpnConnectBtn').onclick = () => {
+  if (vpn.purchased) {
+    toggleVPN();
+    $('vpnModal').classList.add('hidden');
+    return;
+  }
+  // Free 1-minute mullvad
+  vpn.active = true;
+  print('mullvad vpn activated (free 1 min)', 'ok');
+  if (vpn.autoOffTimer) clearTimeout(vpn.autoOffTimer);
+  vpn.autoOffTimer = setTimeout(() => {
+    vpn.active = false;
+    print('mullvad vpn disconnected (time expired)', 'dim');
+    $('vpnStatus').textContent = 'vpn inactive';
+    $('mullvadBtn').style.background = '#555';
+    $('mullvadBtn').innerHTML = '<span class="mole-icon">🟣</span>';
+  }, 60000);
+  $('vpnStatus').textContent = 'vpn active - will auto-off in 1 min';
+  $('mullvadBtn').style.background = '#1a1a2e';
+  $('mullvadBtn').innerHTML = 'Mullvad Free';
+  $('vpnModal').classList.add('hidden');
+};
+// Check if something requires internet or vpn
+function requiresInternet(fn) { return () => { if (!internet.connected) { print('no internet connection. connect first.', 'err'); return; } fn(); }; }
+function requiresVpn(fn) { return () => { if (!vpn.active) { print('vpn not active. connect vpn first.', 'err'); return; } fn(); }; }
 const socket = io();
 
 let ME = null;             // full me incl host, openPort
@@ -81,21 +222,66 @@ async function handleCommand(raw) {
 
   if (c === 'help') {
     print('commands:', 'info');
-    print('  color [0-9]        change terminal color');
-    print('  install [pkg]      packages: bruce, nos');
-    print('  bruce              open password engine');
-    print('  nos                open port scanner');
-    print('  open [path]        open remote core  e.g. open HC-AB12-CD34/5678/core/zero');
-    print('  db open            open database control deck');
+    print('  color [0-9]                change terminal color');
+    print('  install [pkg]              packages: bruce, nos');
+    print('  bruce                      open password engine');
+    print('  nos                        open port scanner');
+    print('  open [path]                open remote core  e.g. open HC-AB12-CD34/5678/core/zero');
+    print('  db open                    open database control deck');
     print('  whoami / users / clear');
+    print('');
+    print('--- network ---', 'info');
+    print('  internet                   connect to internet (opens network list)');
+    print('  vpn                        connect vpn (bypasses restrictions)');
+    print('  install mullvad            install mullvad vpn (free 1min, or buy permanent)');
+    print('--- info ---', 'info');
+    print('  whoami                     show your identity');
+    print('  users                      list all users on the grid');
+    print('  store                      show your balance & rank');
+    print('  helpfull                   full help listing');
     return;
   }
   if (c === 'clear') { term.innerHTML = ''; return; }
-  if (c === 'whoami') { print(ME ? `${ME.name} :: ${ME.host} :: ${ME.balance}$ :: ${rankOf(ME.hacks)}` : 'ghost', 'ok'); return; }
+  // Internet required for most things after first use
+  const needsNet = !internet.connected && !['internet','help','clear','whoami'].includes(c);
+  if (needsNet) { print('no internet connection. type: internet to connect', 'err'); return; }
+  // VPN required for advanced hacking operations
+  if (!vpn.active && ['bruce','nos','transfer','leak','db','open'].includes(c)) {
+    print('this operation requires active vpn. type: vpn', 'err'); return;
+  }
   if (c === 'users') {
     const list = Object.values(usersById);
     print(`-- ${list.length} nodes on the grid --`, 'info');
     list.forEach(u => print(`  ${u.host}  ::  ${u.name}  ::  ${u.balance}$  ::  ${u.rank}`));
+    return;
+  }
+  if (c === 'store') {
+    print(`your balance: ${ME ? ME.balance + '$' : '0'}$`, 'ok');
+    print(`hacks: ${ME ? ME.hacks : 0}  rank: ${ME ? rankOf(ME.hacks) : 'rookie'}`, 'dim');
+    return;
+  }
+  if (c === 'rank') {
+    print(`usage: rank [user host]  e.g. rank HC-ABCD-EFGH`, 'info');
+    return;
+  }
+  if (c === 'helpfull') {
+    print('--- HackChat v0.2 Terminal Help ---', 'info');
+    print('core commands:', 'info');
+    print('  help       show this help'),
+    print('  clear      clear terminal screen'),
+    print('  whoami     show your identity'),
+    print('  users      list all users on the grid'),
+    print('  store      show your balance & rank'),
+    print('  color [0-9] change terminal color'),
+    print('  install bruce/nos install packages'),
+    print('--- hacking:', 'info');
+    print('  bruce      open password engine (1-start/2-quit)'),
+    print('  nos        open port scanner (1-scan/2-quit)'),
+    print('--- remote:', 'info');
+    print('  open [path] connect to another server'),
+    print('  db open    open admin database deck'),
+    print('--- info:', 'info');
+    print('  ping       check server latency'),
     return;
   }
   if (c === 'color') {
@@ -105,7 +291,35 @@ async function handleCommand(raw) {
   }
   if (c === 'install') {
     const pkg = arg.toLowerCase();
-    if (!['bruce', 'nos'].includes(pkg)) { print('packages: bruce, nos', 'err'); return; }
+    if (pkg === 'mullvad') {
+      if (vpn.purchased) {
+        // Permanent mullvad - connect to first country
+        vpn.active = true;
+        print('mullvad vpn activated ✓', 'ok');
+        print(`connected to: ${MULLVAD_NETWORKS[0].country}`, 'info');
+        vpnConnectHandler();
+        return;
+      }
+      // Free 1-minute mullvad
+      if (!vpn.active) {
+        vpn.active = true;
+        print('mullvad vpn activated (free 1 min)', 'ok');
+        // Auto-off after 1 minute
+        if (vpn.autoOffTimer) clearTimeout(vpn.autoOffTimer);
+        vpn.autoOffTimer = setTimeout(() => {
+          vpn.active = false;
+          print('mullvad vpn disconnected (time expired)', 'dim');
+          $('vpnStatus').textContent = 'vpn inactive';
+        }, 60000);
+        $('vpnStatus').textContent = 'vpn active - will auto-off in 1 min';
+        vpnConnectHandler();
+        print('type: vpn to disconnect early', 'info');
+      } else {
+        print('mullvad vpn already active', 'ok');
+      }
+      return;
+    }
+    if (!['bruce', 'nos'].includes(pkg)) { print('packages: bruce, nos, mullvad', 'err'); return; }
     if (installed[pkg]) { print(`${pkg} already installed. type ${pkg} to run.`, 'ok'); return; }
     print(`fetching ${pkg} from grid mirror...`, 'dim');
     progressBar(`installing ${pkg}`, 2600, () => {
@@ -356,6 +570,14 @@ async function boot() {
   } catch {}
   // keep free server awake while anyone is online
   setInterval(() => fetch('/api/ping').catch(() => {}), 5 * 60 * 1000);
+  // tab visibility: pause mining when background, resume when foreground
+  (() => {
+    const state = { active: !document.hidden };
+    document.addEventListener('visibilitychange', () => { state.active = !document.hidden; });
+    const hook = () => { if (socket && socket.data && socket.data.userId) { socket.emit('tab:active', { userId: socket.data.userId, active: state.active }); } };
+    // run once on load and on every interval check
+    hook(); setInterval(hook, 20000);
+  })();
   let id = localStorage.getItem('hc_id');
   if (id) {
     try {

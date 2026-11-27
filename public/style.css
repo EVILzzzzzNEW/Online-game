@@ -128,6 +128,14 @@ body{
 
 .version-tag{position:fixed;right:10px;bottom:8px;font-size:11px;letter-spacing:1px;color:var(--dim);opacity:.7;z-index:40;pointer-events:none}
 
+.net-status,.vpn-status{position:fixed;width:12px;height:12px;border-radius:50%;top:10px;z-index:50;transition:background .3s,transform .2s}
+.net-status{right:10px;top:10px;background:#ff5f57;transform:translateY(-50%)}
+.vpn-status{right:30px;background:#39d0ff;transform:translateY(-50%) + translateX(12px)}
+.net-status.offline{background:#555;transform:translateY(-50%) scale(.8)}
+.net-status.online{background:#00ff9c;box-shadow:0 0 12px #00ff9c}
+.vpn-status.offline{background:#aaa;transform:translateY(-50%) translateX(12px) scale(.8)}
+.vpn-status.online{background:#00c6ff;box-shadow:0 0 12px #00c6ff;transform:translateY(-50%) translateX(12px) scale(1)}
+
 @media(max-width:900px){
   html,body{height:auto;min-height:100%;overflow-y:auto;overflow-x:hidden}
   body{overflow-y:auto}
@@ -137,4 +145,5 @@ body{
   .messages{max-height:60vh;overflow-y:auto}
   .term{max-height:50vh}
   .topbar{position:sticky;top:0}
+  .net-status,.vpn-status{display:none}
 }
