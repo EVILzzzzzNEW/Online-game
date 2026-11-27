@@ -4,9 +4,6 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>HackChat</title>
-<link rel="icon" href="logo-mark.svg" type="image/svg+xml" />
-<div id="netStatus" class="net-status" title="Internet connection status"></div>
-<div id="vpnStatus" class="vpn-status" title="VPN status"></div>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css" />
@@ -17,7 +14,7 @@
 <div class="bg-glow"></div>
 
 <header class="topbar">
-  <div class="logo"><span class="logo-mark">&gt;_</span> HACK<span>CHAT</span></div>
+  <div class="logo"><span class="logo-mark">>_</span> HACK<span>CHAT</span></div>
   <div class="top-right">
     <div class="me-pill" id="mePill">
       <img id="meAvatar" src="" alt="" />
@@ -97,7 +94,7 @@
 <!-- ONBOARDING -->
 <div id="onboard" class="modal-wrap hidden">
   <div class="modal">
-    <div class="modal-logo">&gt;_ HACKCHAT</div>
+    <div class="modal-logo">>_ HACKCHAT</div>
     <h1>Enter the grid</h1>
     <p class="dim">Your account is saved on this device forever. No logins. First set your identity + a <b>server password</b> that protects your mining servers.</p>
     <label>display name</label>
@@ -121,38 +118,6 @@
 </div>
 
 <div id="toast" class="toast"></div>
-<div class="version-tag mono">V--0.2</div>
-
-<!-- INTERNET CONNECTION MODAL -->
-<div id="netModal" class="modal-wrap hidden">
-  <div class="modal">
-    <div class="modal-logo">>_ HACKCHAT</div>
-    <h1>Connect to Network</h1>
-    <p class="dim">Select a network to attempt connection. Some features require internet.</p>
-    <div id="netNetworks" class="net-networks"></div>
-    <div id="netPassword" class="net-password" style="display:none;">
-      <label>Password (if required)</label>
-      <input type="password" id="netPassInput" maxlength="64" />
-    </div>
-    <div style="margin:12px 0;">
-      <button id="netConnectBtn" class="modal button">Connect</button>
-      <button id="netCancelBtn" class="modal button" style="background:#555;">Cancel</button>
-    </div>
-    <div id="netResult" class="dim" style="margin-top:12px;"></div>
-  </div>
-</div>
-
-<!-- VPN MODAL -->
-<div id="vpnModal" class="modal-wrap hidden">
-  <div class="modal">
-    <div class="modal-logo">>_ HACKCHAT</div>
-    <h1>VPN Connection</h1>
-    <p class="dim">Route traffic through secure proxy to bypass restrictions.</p>
-    <button id="vpnConnectBtn" class="modal button">Connect VPN</button>
-    <button id="vpnDisconnectBtn" class="modal button" style="background:#555;">Disconnect</button>
-    <div id="vpnStatus" class="dim" style="margin-top:12px;"></div>
-  </div>
-</div>
 
 <script src="app.js"></script>
 </body>

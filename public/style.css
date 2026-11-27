@@ -8,7 +8,7 @@
 html,body{height:100%}
 body{
   margin:0; background:var(--bg); color:var(--txt);
-  font-family:Inter,system-ui,sans-serif; overflow:hidden;
+  font-family:Inter,system-ui,sans-serif; overflow-x:hidden; overflow-y:auto;
 }
 .mono{font-family:'JetBrains Mono',monospace}
 .dim{color:var(--dim)}
@@ -35,16 +35,6 @@ body{
 .rank-badge.gold{color:#000}
 .rank-badge.silver{background:linear-gradient(180deg,#fff,#9aa3b2)}
 
-.layout{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px;height:calc(100vh - 73px)}
-.panel{background:linear-gradient(180deg,var(--panel),#09090c);border:1px solid var(--line);border-radius:var(--radius);display:flex;flex-direction:column;overflow:hidden;position:relative;box-shadow:0 20px 60px #00000088}
-.panel-head{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);background:#ffffff06}
-.dots{display:flex;gap:6px}.dots i{width:10px;height:10px;border-radius:50%;background:#2c2c33;display:block}
-.dots i:first-child{background:#ff5f57}.dots i:nth-child(2){background:#febc2e}.dots i:last-child{background:#28c840}
-.tabs-mini{font-family:'JetBrains Mono',monospace;font-size:12px;letter-spacing:3px;font-weight:800}
-.pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--green);margin-left:8px;box-shadow:0 0 10px var(--green);animation:pl 1.4s infinite}
-@keyframes pl{50%{opacity:.3}}
-.online{margin-left:auto;font-size:12px;color:var(--dim);font-family:'JetBrains Mono',monospace}
-
 /* CHAT */
 .chat-body{flex:1;position:relative;overflow:hidden}
 .messages{height:100%;overflow-y:auto;padding:18px;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth}
@@ -65,25 +55,6 @@ body{
 .chat-input button,.img-btn{background:#fff;color:#000;border:none;border-radius:12px;padding:0 18px;font-weight:800;cursor:pointer;transition:.2s;display:flex;align-items:center;justify-content:center}
 .chat-input button:hover{transform:translateY(-1px);box-shadow:0 6px 20px #ffffff44}
 .img-btn{padding:0 14px !important}
-#myProfileBtn{background:#1b1b21;color:#fff;border:1px solid var(--line)}
-
-/* profile pane */
-.profile-pane{position:absolute;inset:0;background:#0a0a0df2;backdrop-filter:blur(10px);padding:20px;overflow-y:auto;animation:slidein .3s ease}
-@keyframes slidein{from{transform:translateX(-30px);opacity:0}}
-.hidden{display:none !important}
-.back-btn{background:transparent;border:1px solid var(--line);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;margin-bottom:14px}
-.profile-card{background:linear-gradient(180deg,#15151b,#0c0c10);border:1px solid var(--line);border-radius:16px;padding:24px;text-align:center;animation:pop .35s}
-.profile-card img{width:96px;height:96px;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 0 30px #ffffff44;background:#222}
-.pf-rank{display:inline-block;margin:10px 0;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:3px;text-transform:uppercase;background:#fff;color:#000;border-radius:999px;padding:5px 14px;font-weight:800}
-.pf-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;text-align:left}
-.pf-grid div{background:#0e0e13;border:1px solid var(--line);border-radius:12px;padding:10px}
-.pf-grid label{display:block;font-size:10px;letter-spacing:2px;color:var(--dim)}
-.pf-grid span{font-weight:700;word-break:break-all}
-.edit-row{display:flex;gap:8px;margin-top:10px}
-.edit-row input{flex:1;background:#0e0e13;border:1px solid var(--line);color:#fff;border-radius:10px;padding:10px}
-.edit-row button{background:#fff;border:none;border-radius:10px;padding:0 14px;font-weight:800;cursor:pointer}
-.file-btn{background:#1b1b22;border:1px dashed #444;color:#fff;border-radius:10px;padding:10px;flex:1;cursor:pointer;font-size:13px}
-.self-host{margin-top:12px;background:#001b0e;border:1px solid #00ff9c55;color:var(--green);border-radius:10px;padding:10px;font-size:12px}
 
 /* TERMINAL */
 .term-panel{background:#050506}
@@ -123,27 +94,36 @@ body{
 .admin-row button{border:none;border-radius:8px;padding:8px 10px;font-weight:800;cursor:pointer}
 .btn-set{background:#2f7bff;color:#fff}.btn-ban{background:#ff3b5c;color:#fff}
 
-.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%) translateY(20px);background:#fff;color:#000;border-radius:999px;padding:10px 20px;font-weight:700;opacity:0;transition:.3s;z-index:99;pointer-events:none}
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+/* ONBOARDING */
+.modal-wrap{position:fixed;inset:0;background:#000000cc;display:flex;align-items:center;justify-content:center;z-index:50;backdrop-filter:blur(8px)}
+.modal{width:min(440px,92vw);background:linear-gradient(180deg,#141419,#0a0a0d);border:1px solid #2c2c34;border-radius:20px;padding:28px;animation:pop .4s cubic-bezier(.2,1.4,.4,1);box-shadow:0 30px 100px #000}
+.modal-logo{font-family:'JetBrains Mono',monospace;background:#fff;color:#000;display:inline-block;border-radius:8px;padding:4px 10px;font-weight:800;margin-bottom:12px}
+.modal h1{margin:0 0 8px}
+.modal p{font-size:14px;line-height:1.5}
+.modal label{display:block;font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--dim);margin:14px 0 6px}
+.modal input{width:100%;background:#0c0c10;border:1px solid var(--line);border-radius:12px;color:#fff;padding:12px}
+.modal button{width:100%;margin-top:18px;background:#fff;border:none;border-radius:12px;padding:14px;font-weight:800;cursor:pointer;font-size:15px}
 
+/* version tag */
 .version-tag{position:fixed;right:10px;bottom:8px;font-size:11px;letter-spacing:1px;color:var(--dim);opacity:.7;z-index:40;pointer-events:none}
 
-.net-status,.vpn-status{position:fixed;width:12px;height:12px;border-radius:50%;top:10px;z-index:50;transition:background .3s,transform .2s}
-.net-status{right:10px;top:10px;background:#ff5f57;transform:translateY(-50%)}
-.vpn-status{right:30px;background:#39d0ff;transform:translateY(-50%) + translateX(12px)}
-.net-status.offline{background:#555;transform:translateY(-50%) scale(.8)}
-.net-status.online{background:#00ff9c;box-shadow:0 0 12px #00ff9c}
-.vpn-status.offline{background:#aaa;transform:translateY(-50%) translateX(12px) scale(.8)}
-.vpn-status.online{background:#00c6ff;box-shadow:0 0 12px #00c6ff;transform:translateY(-50%) translateX(12px) scale(1)}
+/* profile pane */
+.profile-pane{position:absolute;inset:0;background:#0a0a0df2;backdrop-filter:blur(10px);padding:20px;overflow-y:auto;animation:slidein .3s ease}
+@keyframes slidein{from{transform:translateX(-30px);opacity:0}}
+.hidden{display:none !important}
+.back-btn{background:transparent;border:1px solid var(--line);color:#fff;border-radius:10px;padding:8px 12px;cursor:pointer;margin-bottom:14px}
+.profile-card{background:linear-gradient(180deg,#15151b,#0c0c10);border:1px solid var(--line);border-radius:16px;padding:24px;text-align:center;animation:pop .35s}
+.profile-card img{width:96px;height:96px;border-radius:50%;object-fit:cover;border:2px solid #fff;box-shadow:0 0 30px #ffffff44;background:#222}
+.pf-rank{display:inline-block;margin:10px 0;font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:3px;text-transform:uppercase;background:#fff;color:#000;border-radius:999px;padding:5px 14px;font-weight:800}
+.pf-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px;text-align:left}
+.pf-grid div{background:#0e0e13;border:1px solid var(--line);border-radius:12px;padding:10px}
+.pf-grid label{display:block;font-size:10px;letter-spacing:2px;color:var(--dim)}
+.pf-grid span{font-weight:700;word-break:break-all}
+.edit-row{display:flex;gap:8px;margin-top:10px}
+.edit-row input{flex:1;background:#0e0e13;border:1px solid var(--line);color:#fff;border-radius:10px;padding:10px}
+.edit-row button{background:#fff;border:none;border-radius:10px;padding:0 14px;font-weight:800;cursor:pointer}
+.file-btn{background:#1b1b22;border:1px dashed #444;color:#fff;border-radius:10px;padding:10px;flex:1;cursor:pointer;font-size:13px}
+.self-host{margin-top:12px;background:#001b0e;border:1px solid #00ff9c55;color:var(--green);border-radius:10px;padding:10px;font-size:12px}
 
-@media(max-width:900px){
-  html,body{height:auto;min-height:100%;overflow-y:auto;overflow-x:hidden}
-  body{overflow-y:auto}
-  .layout{grid-template-columns:1fr;height:auto;overflow:visible}
-  .panel{min-height:70vh;overflow:visible}
-  .chat-body{overflow:visible}
-  .messages{max-height:60vh;overflow-y:auto}
-  .term{max-height:50vh}
-  .topbar{position:sticky;top:0}
-  .net-status,.vpn-status{display:none}
-}
+/* Chat input profile btn */
+#myProfileBtn{background:#1b1b21;color:#fff;border:1px solid var(--line)}
