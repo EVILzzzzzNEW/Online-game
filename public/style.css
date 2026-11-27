@@ -44,7 +44,44 @@ body{
 .net-btn .mole{font-size:14px;line-height:1}
 .mullvad-btn{border-color:#ffcc0033}
 .mullvad-btn:hover{border-color:#ffcc00}
+.net-btn.off{opacity:.45}
 .hidden{display:none !important}
+
+/* lock banner */
+.lock-banner{background:linear-gradient(90deg,#3a1010,#1a0808);border-bottom:1px solid #ff5f5744;color:#ff8a80;font-family:'JetBrains Mono',monospace;font-size:12px;padding:7px 18px;letter-spacing:1px;position:relative;z-index:15;animation:blinkbar 2.4s infinite}
+@keyframes blinkbar{50%{opacity:.65}}
+
+/* deck close buttons */
+.deck-x{background:rgba(0,0,0,.35);color:#fff;border:1px solid #ffffff33;border-radius:8px;padding:6px 12px;font-weight:800;cursor:pointer;font-size:13px}
+.deck-x:hover{background:#fff;color:#000}
+.modal-x{position:absolute;top:14px;right:14px;z-index:5;width:32px;height:32px;padding:0;border-radius:50%;font-size:18px;line-height:1;display:flex;align-items:center;justify-content:center}
+
+/* typing indicator */
+.typing{position:absolute;bottom:8px;left:18px;font-size:11px;color:var(--dim);font-style:italic;background:#0d0d11cc;padding:4px 10px;border-radius:8px;border:1px solid var(--line);z-index:3}
+
+/* command suggestion */
+.cmd-suggest{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--dim);white-space:nowrap;overflow:hidden;max-width:220px}
+
+/* rank progress */
+.rank-progress{margin:12px 0 4px}
+.rank-progress-bar{height:8px;background:#0e0e13;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.rank-progress-bar span{display:block;height:100%;background:linear-gradient(90deg,#00ff9c,#39d0ff);width:0;transition:width .5s}
+.rank-progress-text{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--dim);margin-top:5px;letter-spacing:1px}
+
+/* wipe button */
+.wipe-btn{width:100%;margin-top:12px;background:#2a1414;border:1px solid #ff5f5744;color:#ff6b6b;border-radius:10px;padding:10px;font-weight:700;cursor:pointer;font-size:12px}
+.wipe-btn:hover{background:#ff5f57;color:#fff}
+
+/* leaderboard rows */
+.lb-row{display:flex;align-items:center;gap:12px;background:#0e0e13;border:1px solid var(--line);border-radius:12px;padding:10px 14px;font-size:13px}
+.lb-pos{font-family:'JetBrains Mono',monospace;font-weight:800;color:var(--green);width:26px;font-size:15px}
+.lb-row img{width:30px;height:30px;border-radius:50%;object-fit:cover;background:#222}
+.lb-row .grow{flex:1;min-width:0}
+.lb-bal{font-family:'JetBrains Mono',monospace;font-weight:800;color:var(--green)}
+.lb-rank{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:2px;text-transform:uppercase;background:#fff;color:#000;border-radius:999px;padding:3px 9px;font-weight:800}
+
+/* matrix rain canvas */
+.matrix-canvas{position:fixed;inset:0;pointer-events:none;z-index:45;opacity:.35}
 
 .layout{display:grid;grid-template-columns:1fr 1fr;gap:16px;padding:16px;height:calc(100vh - 69px);min-height:0}
 .panel{background:linear-gradient(180deg,var(--panel),#09090c);border:1px solid var(--line);border-radius:var(--radius);display:flex;flex-direction:column;overflow:hidden;position:relative;box-shadow:0 20px 60px #00000088;min-height:0;min-width:0}

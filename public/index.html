@@ -20,6 +20,8 @@
     <button id="netBtn" class="net-btn" title="Internet connection"><span class="dot net-dot" id="netDot"></span><span class="net-label">NET</span></button>
     <button id="vpnBtn" class="net-btn" title="VPN connection"><span class="dot vpn-dot" id="vpnDot"></span><span class="net-label">VPN</span></button>
     <button id="mullvadBtn" class="net-btn mullvad-btn hidden" title="Mullvad VPN"><span class="mole">&#9681;</span><span class="net-label">MUL</span></button>
+    <button id="rankBtn" class="net-btn" title="Leaderboard"><span class="net-label">TOP</span></button>
+    <button id="soundBtn" class="net-btn" title="Toggle notification sound"><span id="soundIcon">&#128266;</span></button>
     <div class="me-pill" id="mePill">
       <img id="meAvatar" src="" alt="" />
       <div><div id="meName">...</div><div id="meHost" class="mono dim">...</div></div>
@@ -28,6 +30,10 @@
     <div class="rank-badge" id="meRank">rookie</div>
   </div>
 </header>
+
+<div id="lockBanner" class="lock-banner hidden">
+  <span id="lockText">OFFLINE - no internet connection. type: internet</span>
+</div>
 
 <main class="layout">
   <!-- LEFT : CHAT -->
@@ -40,12 +46,17 @@
 
     <div class="chat-body" id="chatView">
       <div id="messages" class="messages"></div>
+      <div id="typing" class="typing hidden"><span id="typingName"></span> is typing...</div>
       <div id="profilePane" class="profile-pane hidden">
         <button class="back-btn" id="profileBack">&larr; back to chat</button>
         <div class="profile-card">
           <img id="pfAvatar" src="" alt="" />
           <h2 id="pfName">-</h2>
           <div class="pf-rank" id="pfRank">rookie</div>
+          <div class="rank-progress">
+            <div class="rank-progress-bar"><span id="pfProgFill"></span></div>
+            <div class="rank-progress-text" id="pfProgText"></div>
+          </div>
           <div class="pf-grid mono">
             <div><label>HOST</label><span id="pfHost">-</span></div>
             <div><label>BALANCE</label><span id="pfBalance">-</span></div>
@@ -65,6 +76,7 @@
               <label class="file-btn">upload avatar<input type="file" id="avatarFile" accept="image/*" hidden /></label>
             </div>
             <div class="self-host mono" id="selfHostBox"></div>
+            <button id="wipeBtn" class="wipe-btn">wipe local account</button>
           </div>
         </div>
       </div>
@@ -89,6 +101,7 @@
     <div class="term-input-row">
       <span class="prompt">&rsaquo;</span>
       <input id="termInput" autocomplete="off" spellcheck="false" placeholder="type a command..." />
+      <span id="cmdSuggest" class="cmd-suggest"></span>
     </div>
   </section>
 </main>
@@ -112,19 +125,20 @@
   <div class="admin-card">
     <div class="admin-head">
       <div><b>DATABASE</b> <span>control deck</span></div>
-      <button id="adminClose">&#10005; close</button>
+      <button id="adminClose" class="deck-x">&times; close</button>
     </div>
     <div class="admin-sub">All users on this HackChat instance. View and set balance. Ban wipes their device account on next open.</div>
     <div id="adminList" class="admin-list"></div>
   </div>
 </div>
 
-<!-- INTERNET CONNECTION MODAL -->
+<!-- INTERNET CONNECTION DECK -->
 <div id="netModal" class="modal-wrap hidden">
   <div class="modal">
+    <button id="netCloseBtn" class="deck-x modal-x">&times;</button>
     <div class="modal-logo">>_ NETWORK</div>
     <h1>Available Networks</h1>
-    <p class="dim">Select a network. Some networks are locked - you can crack them from the terminal with <b>netcrack</b>.</p>
+    <p class="dim">Select a network. Locked networks need the right password - crack them with <b>netcrack</b>.</p>
     <div id="netNetworks" class="net-list"></div>
     <div id="netPassRow" class="hidden">
       <label>network password</label>
@@ -136,9 +150,10 @@
   </div>
 </div>
 
-<!-- VPN MODAL -->
+<!-- VPN DECK -->
 <div id="vpnModal" class="modal-wrap hidden">
   <div class="modal">
+    <button id="vpnCloseBtn" class="deck-x modal-x">&times;</button>
     <div class="modal-logo">>_ VPN</div>
     <h1>Free VPN Tunnel</h1>
     <p class="dim">Free tunnel runs for <b>60 seconds</b> then closes. Reconnect any time. Buy Mullvad for permanent access to every country.</p>
@@ -148,9 +163,10 @@
   </div>
 </div>
 
-<!-- MULLVAD MODAL -->
+<!-- MULLVAD DECK -->
 <div id="mullvadModal" class="modal-wrap hidden">
   <div class="modal mullvad-modal">
+    <button id="mullvadXBtn" class="deck-x modal-x">&times;</button>
     <div class="modal-logo mullvad-logo">MULLVAD</div>
     <h1>Mullvad VPN</h1>
     <p class="dim">Permanent VPN access. Pick any country to route your traffic.</p>
@@ -163,6 +179,18 @@
       </div>
     </div>
     <button id="mullvadCloseBtn" class="btn-gray">Close</button>
+  </div>
+</div>
+
+<!-- LEADERBOARD DECK -->
+<div id="rankModal" class="modal-wrap hidden">
+  <div class="modal">
+    <button id="rankCloseBtn" class="deck-x modal-x">&times;</button>
+    <div class="modal-logo">>_ TOP</div>
+    <h1>Leaderboard</h1>
+    <p class="dim">Highest balances on the grid.</p>
+    <div id="rankList" class="net-list"></div>
+    <button id="rankDismissBtn" class="btn-gray">Close</button>
   </div>
 </div>
 
