@@ -1,7 +1,7 @@
 {
   "name": "hackchat",
-  "version": "1.0.0",
-  "description": "HackChat — live chat + hacking terminal simulator",
+  "version": "2.0.0",
+  "description": "HackChat v0.2 - Live chat + hacking terminal simulator with many new features",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
