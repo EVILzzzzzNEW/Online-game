@@ -1,22 +1,27 @@
-// Tab visibility for mining pause
-document.addEventListener('visibilitychange', () => {
-  const active = !document.hidden;
-  if (window.socket && window.socket.data && window.socket.data.userId) {
-    window.socket.emit('tab:active', { userId: window.socket.data.userId, active });
-  }
-});
-// === NETWORK STATE ===
-let internet = { connected: false, ssid: null, password: null };
-let vpn = { active: false, autoOffTimer: null, purchased: false, countries: [] };
+/* HackChat v0.2 - Full feature set */
+const $ = (id) => document.getElementById(id);
+const socket = io();
+
+let ME = null;
+let usersById = {};
+let installed = JSON.parse(localStorage.getItem('hc_installed') || '{}');
+let termColor = localStorage.getItem('hc_term_color') || '0';
+let TSTATE = { mode: 'idle', data: {} };
+let adminToken = null;
+
+/* network state */
+let internet = { connected: false, ssid: null };
+let vpn = { active: false, timer: null, mullvad: false, country: null };
+
 const NETWORKS = [
-  { ssid: 'HackChat-Free-Wifi', auth: true, password: 'hackchat123' },
+  { ssid: 'HackChat-Free-Wifi', auth: false, password: '' },
   { ssid: 'Student-Network', auth: true, password: 'studeNT42!' },
-  { ssid: 'Guest-Portal', auth: false },
+  { ssid: 'Guest-Portal', auth: false, password: '' },
   { ssid: 'Admin-Router', auth: true, password: 'admin!secure' },
   { ssid: 'Public-Library', auth: true, password: 'library!access' }
 ];
-// Mullvad VPN networks
-const MULLVAD_NETWORKS = [
+
+const MULLVAD_COUNTRIES = [
   { country: 'United States', code: 'us' },
   { country: 'Canada', code: 'ca' },
   { country: 'Germany', code: 'de' },
@@ -24,131 +29,10 @@ const MULLVAD_NETWORKS = [
   { country: 'United Kingdom', code: 'gb' },
   { country: 'Switzerland', code: 'ch' },
   { country: 'Japan', code: 'jp' },
-  { country: 'Singapore', code: 'sg' }
+  { country: 'Singapore', code: 'sg' },
+  { country: 'Sweden', code: 'se' },
+  { country: 'Australia', code: 'au' }
 ];
-// Click internet icon
-$('netStatus').onclick = () => { $('netModal').classList.remove('hidden'); listNetworks(); };
-
-// Mullvad VPN button
-const mullvadBtn = document.createElement('div');
-mullvadBtn.id = 'mullvadBtn';
-mullvadBtn.className = 'mullvad-status';
-mullvadBtn.title = 'Mullvad VPN';
-mullvadBtn.innerHTML = '<span class="mole-icon">🟣</span>';
-mullvadBtn.style.cssText = `
-  position: fixed; right: 50px; top: 10px; width: 24px; height: 24px; border-radius: 50%; 
-  background: #1a1a2e; color: #ffcc00; font-size: 12px; display: flex; align-items: center; 
-  justify-content: center; cursor: pointer; z-index: 60; box-shadow: 0 0 12px rgba(0,0,0,0.5);
-`;
-mullvadBtn.onclick = () => { if (vpn.purchased) toggleVPN(); else showMullvadMenu() };
-document.body.appendChild(mullvadBtn);
-
-function toggleVPN() {
-  vpn.active = !vpn.active;
-  if (vpn.active) {
-    print('mullvad vpn activated ✓', 'ok');
-    print('connected to: United States', 'info');
-    $('vpnStatus').textContent = 'vpn active';
-    mullvadBtn.style.background = '#1a1a2e';
-  } else {
-    print('mullvad vpn disconnected', 'dim');
-    $('vpnStatus').textContent = 'vpn inactive';
-    mullvadBtn.style.background = '#555';
-  }
-}
-
-function showMullvadMenu() {
-  const countries = MULLVAD_NETWORKS.map(n => `<div><span>${n.country}</span><button class="btn-small" onclick="connectToCountry('${n.code}')">Connect</button></div>`).join('');
-  print(`<b>Mullvad VPN Networks</b><br>${countries}`, 'info');
-  print('After purchase, all countries are permanently available', 'dim');
-}
-
-function connectToCountry(code) {
-  vpn.active = true;
-  print(`mullvad vpn connected to ${code.toUpperCase()}`, 'ok');
-  $('vpnStatus').textContent = 'vpn active';
-  // Show all countries now unlocked
-  vpn.purchased = true;
-  print('all mullvad countries now permanently unlocked ✓', 'ok');
-}
-$('netCancelBtn').onclick = () => { $('netModal').classList.add('hidden'); };
-$('netConnectBtn').onclick = attemptConnect;
-function listNetworks() {
-  const box = $('netNetworks'); box.innerHTML = '';
-  NETWORKS.forEach(n => {
-    const div = document.createElement('div'); div.className = 'net-item';
-    div.innerHTML = `<span>${esc(n.ssid)}</span>${n.auth ? `<span class="dim">(password required)</span>` : ''}`;
-    div.onclick = () => { $('netPassword').style.display = n.auth ? 'block' : 'none'; internet.ssid = n.ssid; internet.password = n.password || ''; };
-    box.appendChild(div);
-  });
-}
-$('netPassword').style.display = 'none';
-function attemptConnect() {
-  const pw = $('netPassInput').value || internet.password;
-  if (!internet.ssid) return print('select a network first', 'err');
-  print(`attempting connection to ${internet.ssid}...`, 'info');
-  progressBar('handshaking with ' + internet.ssid, 2000, () => {
-    // 70% chance of success if no password or correct password
-    const success = !internet.ssid.auth || pw === internet.ssid.password;
-    if (success) {
-      internet.connected = true;
-      $('netResult').textContent = 'connected ✓  signal strength: excellent';
-      $('netResult').className = 'ok';
-      print('internet connected: ' + internet.ssid, 'ok');
-      // unlock vpn after internet
-      $('vpnStatus').textContent = 'vpn disabled (internet active)';
-      setTimeout(() => $('netModal').classList.add('hidden'), 1500);
-    } else {
-      print('wrong password. try again or select another network.', 'err');
-      $('netResult').textContent = 'wrong password';
-      $('netResult').className = 'err';
-    }
-  });
-}
-// VPN modal
-$('vpnStatus').onclick = () => { $('vpnModal').classList.remove('hidden'); };
-$('vpnDisconnectBtn').onclick = () => {
-  vpn.active = false;
-  if (vpn.autoOffTimer) clearTimeout(vpn.autoOffTimer);
-  print('vpn disconnected', 'dim');
-  $('vpnStatus').textContent = 'vpn inactive';
-  $('mullvadBtn').style.background = '#555';
-  $('mullvadBtn').innerHTML = '<span class="mole-icon">🟣</span>';
-};
-$('vpnConnectBtn').onclick = () => {
-  if (vpn.purchased) {
-    toggleVPN();
-    $('vpnModal').classList.add('hidden');
-    return;
-  }
-  // Free 1-minute mullvad
-  vpn.active = true;
-  print('mullvad vpn activated (free 1 min)', 'ok');
-  if (vpn.autoOffTimer) clearTimeout(vpn.autoOffTimer);
-  vpn.autoOffTimer = setTimeout(() => {
-    vpn.active = false;
-    print('mullvad vpn disconnected (time expired)', 'dim');
-    $('vpnStatus').textContent = 'vpn inactive';
-    $('mullvadBtn').style.background = '#555';
-    $('mullvadBtn').innerHTML = '<span class="mole-icon">🟣</span>';
-  }, 60000);
-  $('vpnStatus').textContent = 'vpn active - will auto-off in 1 min';
-  $('mullvadBtn').style.background = '#1a1a2e';
-  $('mullvadBtn').innerHTML = 'Mullvad Free';
-  $('vpnModal').classList.add('hidden');
-};
-// Check if something requires internet or vpn
-function requiresInternet(fn) { return () => { if (!internet.connected) { print('no internet connection. connect first.', 'err'); return; } fn(); }; }
-function requiresVpn(fn) { return () => { if (!vpn.active) { print('vpn not active. connect vpn first.', 'err'); return; } fn(); }; }
-const socket = io();
-
-let ME = null;             // full me incl host, openPort
-let usersById = {}, usersByHost = {};
-let installed = JSON.parse(localStorage.getItem('hc_installed') || '{}');
-let termColor = localStorage.getItem('hc_term_color') || '0';
-let TSTATE = { mode: 'idle', data: {} };
-let adminToken = null;
-let lastCopiedPath = '';
 
 const COLORS = {
   '0': '#00ff9c', '1': '#ffffff', '2': '#39d0ff', '3': '#ff5cf1',
@@ -156,176 +40,476 @@ const COLORS = {
   '8': '#a78bff', '9': '#9aa3b2'
 };
 
-function toast(t) {
-  const el = $('toast'); el.textContent = t; el.classList.add('show');
-  setTimeout(() => el.classList.remove('show'), 2200);
+/* ---------- helpers ---------- */
+function esc(s) {
+  var amp = String.fromCharCode(38);
+  var lt = String.fromCharCode(60);
+  var gt = String.fromCharCode(62);
+  var quot = String.fromCharCode(34);
+  var apos = String.fromCharCode(39);
+  var map = {};
+  map[amp] = '&' + 'amp;';
+  map[lt] = '&' + 'lt;';
+  map[gt] = '&' + 'gt;';
+  map[quot] = '&' + 'quot;';
+  map[apos] = '&' + '#39;';
+  var str = String(s === undefined || s === null ? '' : s);
+  return str.replace(/[&<>"']/g, function (m) { return map[m]; });
 }
 function defaultAvatar(name) {
-  const c = encodeURIComponent((name || '?')[0].toUpperCase());
-  return 'data:image/svg+xml;utf8,' + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" rx="48" fill="#222"/><text x="48" y="62" font-size="44" text-anchor="middle" fill="#fff" font-family="monospace">${c}</text></svg>`);
+  var c = encodeURIComponent((name || '?')[0].toUpperCase());
+  var svg = '<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96"><rect width="96" height="96" rx="48" fill="#222"/><text x="48" y="62" font-size="44" text-anchor="middle" fill="#fff" font-family="monospace">' + c + '</text></svg>';
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
 }
-function esc(s) { return String(s ?? '').replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m])); }
-function rankOf(h) { if (h >= 10) return 'legend'; if (h >= 7) return 'elite'; if (h >= 5) return 'gold'; if (h >= 3) return 'silver'; if (h >= 1) return 'bronze'; return 'rookie'; }
-function incomeOf(h) { const r = rankOf(h); if (r === 'legend') return 50; if (r === 'elite') return 38; if (r === 'gold') return 28; if (r === 'silver') return 18; if (r === 'bronze') return 10; return 5; }
+function rankOf(h) {
+  if (h >= 10) return 'legend';
+  if (h >= 7) return 'elite';
+  if (h >= 5) return 'gold';
+  if (h >= 3) return 'silver';
+  if (h >= 1) return 'bronze';
+  return 'rookie';
+}
+function incomeOf(h) {
+  var r = rankOf(h);
+  if (r === 'legend') return 50;
+  if (r === 'elite') return 38;
+  if (r === 'gold') return 28;
+  if (r === 'silver') return 18;
+  if (r === 'bronze') return 10;
+  return 5;
+}
+function toast(t) {
+  var el = $('toast');
+  el.textContent = t;
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(function () { el.classList.remove('show'); }, 2400);
+}
 
-/* ---------- TERM ---------- */
-const term = $('term'), termInput = $('termInput');
+/* ---------- terminal ---------- */
+var term = $('term');
+var termInput = $('termInput');
 function applyColor() { term.style.setProperty('--tc', COLORS[termColor] || COLORS['0']); }
 applyColor();
-function print(t = '', cls = '') {
-  const div = document.createElement('div');
-  div.className = 'l ' + cls;
+function print(t, cls) {
+  var div = document.createElement('div');
+  div.className = 'l ' + (cls || '');
   div.textContent = t;
   term.appendChild(div);
   term.scrollTop = term.scrollHeight;
+  return div;
 }
 function printHTML(html) {
-  const div = document.createElement('div');
+  var div = document.createElement('div');
   div.className = 'l';
   div.innerHTML = html;
   term.appendChild(div);
   term.scrollTop = term.scrollHeight;
 }
-function bootTerm() {
-  print('HACKCHAT ROOT TERMINAL v2.1 — type "help"', 'info');
-  print('----------------------------------------', 'dim');
-}
 function progressBar(label, ms, done) {
-  const line = document.createElement('div');
+  var line = document.createElement('div');
   line.className = 'l bar';
   term.appendChild(line);
-  const start = Date.now();
-  const iv = setInterval(() => {
-    const p = Math.min(1, (Date.now() - start) / ms);
-    const n = Math.floor(p * 24);
-    line.textContent = `${label} [${'█'.repeat(n)}${'░'.repeat(24 - n)}] ${Math.floor(p * 100)}%`;
+  var start = Date.now();
+  var iv = setInterval(function () {
+    var p = Math.min(1, (Date.now() - start) / ms);
+    var n = Math.floor(p * 24);
+    line.textContent = label + ' [' + repeat('█', n) + repeat('░', 24 - n) + '] ' + Math.floor(p * 100) + '%';
     term.scrollTop = term.scrollHeight;
-    if (p >= 1) { clearInterval(iv); done && done(); }
+    if (p >= 1) { clearInterval(iv); if (done) done(); }
   }, 90);
 }
+function repeat(s, n) { var o = ''; for (var i = 0; i < n; i++) o += s; return o; }
 
-termInput.addEventListener('keydown', (e) => {
-  if (e.key !== 'Enter') return;
-  const raw = termInput.value;
-  termInput.value = '';
-  print('➜ ' + raw, 'info');
-  handleCommand(raw.trim());
+/* ---------- account ---------- */
+function saveBackup() {
+  try {
+    if (!ME) return;
+    localStorage.setItem('hc_backup', JSON.stringify({
+      id: ME.id, name: ME.name, avatar: ME.avatar, host: ME.host,
+      openPort: ME.openPort, balance: ME.balance, hacks: ME.hacks,
+      createdAt: ME.createdAt, serverPassword: localStorage.getItem('hc_pass') || ''
+    }));
+  } catch (e) {}
+}
+function getBackup() {
+  try { return JSON.parse(localStorage.getItem('hc_backup') || 'null'); } catch (e) { return null; }
+}
+function renderMe() {
+  if (!ME) return;
+  saveBackup();
+  $('meName').textContent = ME.name;
+  $('meHost').textContent = ME.host;
+  $('meBalance').textContent = ME.balance;
+  $('meAvatar').src = ME.avatar || defaultAvatar(ME.name);
+  var r = $('meRank');
+  r.textContent = rankOf(ME.hacks);
+  r.className = 'rank-badge ' + rankOf(ME.hacks);
+  $('selfHostBox').textContent = 'server: ' + ME.host + '  port: ' + (ME.openPort || '???') +
+    '  income: ' + incomeOf(ME.hacks) + '$/10s  hacks: ' + ME.hacks;
+}
+function refreshMe() {
+  if (!ME) return;
+  fetch('/api/me/' + ME.id).then(function (r) { return r.json(); }).then(function (j) {
+    if (j && !j.error) { ME = j; renderMe(); }
+  }).catch(function () {});
+}
+function enterApp() {
+  renderMe();
+  socket.emit('presence:online', { userId: ME.id });
+  socket.on('balance:' + ME.id, function (d) {
+    ME.balance = d.balance;
+    $('meBalance').textContent = d.balance;
+    saveBackup();
+  });
+}
+function sendTabState() {
+  if (socket && ME) socket.emit('tab:active', { userId: ME.id, active: !document.hidden });
+}
+document.addEventListener('visibilitychange', function () { sendTabState(); });
+
+/* ---------- chat ---------- */
+function msgEl(m) {
+  var mine = ME && m.userId === ME.id;
+  var d = document.createElement('div');
+  d.className = 'msg' + (mine ? ' mine' : '');
+  var av = m.avatar || defaultAvatar(m.name);
+  d.innerHTML = '<img class="av" src="' + esc(av) + '"/><div class="bubble"><div class="who">' +
+    esc(m.name) + ' <time>' + new Date(m.ts).toLocaleTimeString() + '</time></div><div class="text">' +
+    esc(m.text) + '</div></div>';
+  d.querySelector('.av').onclick = function () { openProfile(m.userId); };
+  d.querySelector('.who').onclick = function () { openProfile(m.userId); };
+  if (m.image) {
+    var im = document.createElement('img');
+    im.className = 'photo'; im.src = m.image; im.loading = 'lazy';
+    d.querySelector('.bubble').appendChild(im);
+  }
+  if (!m.text) d.querySelector('.text').remove();
+  return d;
+}
+function addMsg(m) {
+  var box = $('messages');
+  box.appendChild(msgEl(m));
+  while (box.children.length > 200) box.firstChild.remove();
+  box.scrollTop = box.scrollHeight;
+}
+socket.on('chat:history', function (arr) { $('messages').innerHTML = ''; arr.forEach(addMsg); });
+socket.on('chat:message', addMsg);
+socket.on('users:list', function (arr) {
+  usersById = {};
+  arr.forEach(function (u) { usersById[u.id] = u; });
+  $('onlineCount').textContent = arr.length + ' online';
+  if (ME && usersById[ME.id]) {
+    ME.balance = usersById[ME.id].balance;
+    ME.hacks = usersById[ME.id].hacks;
+    ME.name = usersById[ME.id].name;
+    ME.avatar = usersById[ME.id].avatar;
+    renderMe();
+  }
 });
+socket.on('user:banned', function (d) {
+  if (ME && d.id === ME.id) {
+    localStorage.removeItem('hc_id');
+    localStorage.removeItem('hc_backup');
+    toast('you were banned - reloading fresh');
+    setTimeout(function () { location.reload(); }, 1400);
+  }
+});
+function sendText() {
+  var t = $('msgInput').value.trim();
+  if (!t || !ME) return;
+  $('msgInput').value = '';
+  socket.emit('chat:message', { userId: ME.id, text: t }, function (ack) {
+    if (ack && ack.error) toast(ack.error);
+  });
+}
+$('sendBtn').onclick = sendText;
+$('msgInput').addEventListener('keydown', function (e) { if (e.key === 'Enter') sendText(); });
+function fileToDataUrl(file, max) {
+  max = max || 800;
+  return new Promise(function (res, rej) {
+    var img = new Image();
+    var url = URL.createObjectURL(file);
+    img.onload = function () {
+      var scale = Math.min(1, max / Math.max(img.width, img.height));
+      var cv = document.createElement('canvas');
+      cv.width = img.width * scale;
+      cv.height = img.height * scale;
+      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
+      URL.revokeObjectURL(url);
+      res(cv.toDataURL('image/jpeg', 0.72));
+    };
+    img.onerror = rej;
+    img.src = url;
+  });
+}
+$('imgInput').onchange = function (e) {
+  var f = e.target.files[0];
+  if (!f || !ME) return;
+  fileToDataUrl(f).then(function (data) {
+    socket.emit('chat:message', { userId: ME.id, text: '', image: data });
+  });
+  e.target.value = '';
+};
 
-async function handleCommand(raw) {
-  // state machines first
-  if (TSTATE.mode !== 'idle') { await handleState(raw); return; }
+/* ---------- profile ---------- */
+function openProfile(userId) {
+  var u = usersById[userId];
+  if (!u) return;
+  $('profilePane').classList.remove('hidden');
+  $('pfAvatar').src = u.avatar || defaultAvatar(u.name);
+  $('pfName').textContent = u.name;
+  $('pfRank').textContent = u.rank;
+  $('pfHost').textContent = u.host;
+  $('pfBalance').textContent = u.balance + '$';
+  $('pfHacks').textContent = u.hacks;
+  $('pfMining').textContent = incomeOf(u.hacks) + '$/10s';
+  var self = ME && userId === ME.id;
+  $('pfSelf').classList.toggle('hidden', !self);
+  if (self) { $('editName').value = ME.name; refreshMe(); }
+}
+$('profileBack').onclick = function () { $('profilePane').classList.add('hidden'); };
+$('myProfileBtn').onclick = function () { if (ME) openProfile(ME.id); };
+$('mePill').onclick = function () { if (ME) openProfile(ME.id); };
+$('saveName').onclick = function () {
+  var v = $('editName').value.trim();
+  if (!v || !ME) return;
+  fetch('/api/me/' + ME.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: v }) })
+    .then(function () { toast('name updated'); refreshMe(); });
+};
+$('saveAvatar').onclick = function () {
+  var v = $('avatarUrl').value.trim();
+  if (!v || !ME) return;
+  fetch('/api/me/' + ME.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ avatar: v }) })
+    .then(function () { toast('avatar updated'); refreshMe(); });
+};
+$('avatarFile').onchange = function (e) {
+  var f = e.target.files[0];
+  if (!f || !ME) return;
+  fileToDataUrl(f, 256).then(function (data) {
+    fetch('/api/me/' + ME.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ avatar: data }) })
+      .then(function () { toast('avatar updated'); refreshMe(); });
+  });
+  e.target.value = '';
+};
+
+/* ---------- network UI ---------- */
+var selectedNet = null;
+function renderNetList() {
+  var box = $('netNetworks');
+  box.innerHTML = '';
+  NETWORKS.forEach(function (n) {
+    var el = document.createElement('div');
+    el.className = 'net-item';
+    var tag = n.auth ? '<span class="lock">locked</span>' : '<span class="lock">open</span>';
+    el.innerHTML = '<span>' + esc(n.ssid) + '</span>' + tag;
+    el.onclick = function () {
+      selectedNet = n;
+      $('netPassRow').classList.toggle('hidden', !n.auth);
+      Array.prototype.forEach.call(box.children, function (c) { c.classList.remove('sel'); });
+      el.classList.add('sel');
+    };
+    box.appendChild(el);
+  });
+}
+$('netBtn').onclick = function () {
+  renderNetList();
+  $('netResult').textContent = '';
+  $('netResult').className = 'net-result';
+  $('netModal').classList.remove('hidden');
+};
+$('netCancelBtn').onclick = function () { $('netModal').classList.add('hidden'); };
+$('netConnectBtn').onclick = function () {
+  if (!selectedNet) { $('netResult').textContent = 'select a network first'; $('netResult').className = 'net-result err'; return; }
+  var pw = $('netPassInput').value;
+  print('connecting to ' + selectedNet.ssid + ' ...', 'dim');
+  progressBar('handshake', 1800, function () {
+    if (!selectedNet.auth || pw === selectedNet.password) {
+      internet.connected = true;
+      internet.ssid = selectedNet.ssid;
+      $('netDot').classList.add('on');
+      $('netResult').textContent = 'connected - signal excellent';
+      $('netResult').className = 'net-result ok';
+      print('internet connected: ' + selectedNet.ssid, 'ok');
+      setTimeout(function () { $('netModal').classList.add('hidden'); }, 900);
+    } else {
+      $('netResult').textContent = 'wrong password';
+      $('netResult').className = 'net-result err';
+      print('wrong password for ' + selectedNet.ssid, 'err');
+    }
+  });
+};
+
+/* ---------- VPN ---------- */
+function startVpnTimer() {
+  clearInterval(vpn.timer);
+  var left = 60;
+  vpn.timer = setInterval(function () {
+    left -= 1;
+    $('vpnInfo').textContent = 'vpn active - ' + left + 's remaining';
+    if (left <= 0) {
+      clearInterval(vpn.timer);
+      vpn.active = false;
+      $('vpnDot').classList.remove('vpn-on');
+      $('vpnInfo').textContent = 'vpn tunnel closed';
+      print('vpn tunnel closed (60s elapsed)', 'dim');
+    }
+  }, 1000);
+}
+$('vpnBtn').onclick = function () {
+  if (!internet.connected) { toast('connect to internet first'); return; }
+  $('vpnModal').classList.remove('hidden');
+  $('vpnInfo').textContent = vpn.active ? 'vpn active' : 'vpn offline';
+};
+$('vpnConnectBtn').onclick = function () {
+  if (!internet.connected) { toast('connect to internet first'); return; }
+  if (vpn.mullvad) { connectMullvad(vpn.country || 'us'); $('vpnModal').classList.add('hidden'); return; }
+  vpn.active = true;
+  $('vpnDot').classList.add('vpn-on');
+  startVpnTimer();
+  $('vpnInfo').textContent = 'vpn active - 60s remaining';
+  $('vpnModal').classList.add('hidden');
+  print('vpn tunnel established (free, 60 seconds)', 'ok');
+};
+$('vpnDisconnectBtn').onclick = function () {
+  vpn.active = false;
+  clearInterval(vpn.timer);
+  $('vpnDot').classList.remove('vpn-on');
+  $('vpnInfo').textContent = 'vpn offline';
+  print('vpn disconnected', 'dim');
+};
+
+/* ---------- mullvad ---------- */
+function renderMullvadList() {
+  var box = $('mullvadList');
+  box.innerHTML = '';
+  MULLVAD_COUNTRIES.forEach(function (c) {
+    var el = document.createElement('div');
+    el.className = 'net-item';
+    el.innerHTML = '<span>' + esc(c.country) + '</span><span class="lock">' + esc(c.code.toUpperCase()) + '</span>';
+    if (vpn.mullvad) {
+      el.onclick = function () { connectMullvad(c.code); $('mullvadModal').classList.add('hidden'); };
+    } else {
+      el.style.opacity = '.45';
+      el.style.cursor = 'not-allowed';
+    }
+    box.appendChild(el);
+  });
+  $('mullvadBuyRow').classList.toggle('hidden', vpn.mullvad);
+}
+function connectMullvad(code) {
+  var c = MULLVAD_COUNTRIES.filter(function (x) { return x.code === code; })[0];
+  vpn.active = true;
+  vpn.mullvad = true;
+  vpn.country = code;
+  $('vpnDot').classList.add('vpn-on');
+  $('mullvadBtn').classList.remove('hidden');
+  print('mullvad vpn connected to ' + (c ? c.country : code), 'ok');
+  toast('vpn active: ' + (c ? c.country : code));
+}
+$('mullvadBtn').onclick = function () {
+  if (!vpn.mullvad) {
+    if (!internet.connected) { toast('connect to internet first'); return; }
+    print('mullvad client not found. type: install mullvad', 'dim');
+    toast('type install mullvad in terminal');
+    return;
+  }
+  renderMullvadList();
+  $('mullvadModal').classList.remove('hidden');
+};
+$('mullvadCloseBtn').onclick = function () { $('mullvadModal').classList.add('hidden'); };
+$('mullvadBuyBtn').onclick = function () {
+  if (!ME) return;
+  if (ME.balance < 10000) { toast('need 10000$ - you have ' + ME.balance + '$'); return; }
+  fetch('/api/buy-mullvad', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ userId: ME.id }) })
+    .then(function (r) { return r.json(); })
+    .then(function (j) {
+      if (j.error) { toast(j.error); return; }
+      ME.balance = j.balance;
+      renderMe();
+      vpn.mullvad = true;
+      $('mullvadBtn').classList.remove('hidden');
+      renderMullvadList();
+      print('mullvad vpn purchased - permanent access unlocked', 'ok');
+      toast('mullvad vpn purchased!');
+    });
+};
+
+/* ---------- terminal commands ---------- */
+function bootTerm() {
+  print('HACKCHAT ROOT TERMINAL v0.2 - type help', 'info');
+  print('----------------------------------------', 'dim');
+}
+function handleCommand(raw) {
   if (!raw) return;
-  const [cmd, ...rest] = raw.split(/\s+/);
-  const c = cmd.toLowerCase();
-  const arg = rest.join(' ');
+  var parts = raw.split(/\s+/);
+  var c = parts[0].toLowerCase();
+  var arg = parts.slice(1).join(' ');
 
   if (c === 'help') {
     print('commands:', 'info');
-    print('  color [0-9]                change terminal color');
-    print('  install [pkg]              packages: bruce, nos');
-    print('  bruce                      open password engine');
-    print('  nos                        open port scanner');
-    print('  open [path]                open remote core  e.g. open HC-AB12-CD34/5678/core/zero');
-    print('  db open                    open database control deck');
-    print('  whoami / users / clear');
-    print('');
-    print('--- network ---', 'info');
-    print('  internet                   connect to internet (opens network list)');
-    print('  vpn                        connect vpn (bypasses restrictions)');
-    print('  install mullvad            install mullvad vpn (free 1min, or buy permanent)');
-    print('--- info ---', 'info');
-    print('  whoami                     show your identity');
-    print('  users                      list all users on the grid');
-    print('  store                      show your balance & rank');
-    print('  helpfull                   full help listing');
+    print('  color [0-9]        change terminal color');
+    print('  install [pkg]      packages: bruce, nos, mullvad');
+    print('  bruce              password engine (1-start 2-quit)');
+    print('  nos                port scanner (1-scan 2-quit)');
+    print('  open [path]        open remote core');
+    print('  db open            open database control deck');
+    print('  whoami             show your identity');
+    print('  users              list all users');
+    print('  store              show your balance and rank');
+    print('  clear              clear the screen');
+    print('  net / vpn          connect internet / vpn');
     return;
   }
   if (c === 'clear') { term.innerHTML = ''; return; }
-  // Internet required for most things after first use
-  const needsNet = !internet.connected && !['internet','help','clear','whoami'].includes(c);
-  if (needsNet) { print('no internet connection. type: internet to connect', 'err'); return; }
-  // VPN required for advanced hacking operations
-  if (!vpn.active && ['bruce','nos','transfer','leak','db','open'].includes(c)) {
-    print('this operation requires active vpn. type: vpn', 'err'); return;
+  if (c === 'whoami') {
+    print(ME ? ME.name + ' :: ' + ME.host + ' :: ' + ME.balance + '$ :: ' + rankOf(ME.hacks) : 'ghost', 'ok');
+    return;
   }
   if (c === 'users') {
-    const list = Object.values(usersById);
-    print(`-- ${list.length} nodes on the grid --`, 'info');
-    list.forEach(u => print(`  ${u.host}  ::  ${u.name}  ::  ${u.balance}$  ::  ${u.rank}`));
+    var list = Object.keys(usersById).map(function (k) { return usersById[k]; });
+    print('-- ' + list.length + ' nodes on the grid --', 'info');
+    list.forEach(function (u) { print('  ' + u.host + ' :: ' + u.name + ' :: ' + u.balance + '$ :: ' + u.rank); });
     return;
   }
   if (c === 'store') {
-    print(`your balance: ${ME ? ME.balance + '$' : '0'}$`, 'ok');
-    print(`hacks: ${ME ? ME.hacks : 0}  rank: ${ME ? rankOf(ME.hacks) : 'rookie'}`, 'dim');
-    return;
-  }
-  if (c === 'rank') {
-    print(`usage: rank [user host]  e.g. rank HC-ABCD-EFGH`, 'info');
-    return;
-  }
-  if (c === 'helpfull') {
-    print('--- HackChat v0.2 Terminal Help ---', 'info');
-    print('core commands:', 'info');
-    print('  help       show this help'),
-    print('  clear      clear terminal screen'),
-    print('  whoami     show your identity'),
-    print('  users      list all users on the grid'),
-    print('  store      show your balance & rank'),
-    print('  color [0-9] change terminal color'),
-    print('  install bruce/nos install packages'),
-    print('--- hacking:', 'info');
-    print('  bruce      open password engine (1-start/2-quit)'),
-    print('  nos        open port scanner (1-scan/2-quit)'),
-    print('--- remote:', 'info');
-    print('  open [path] connect to another server'),
-    print('  db open    open admin database deck'),
-    print('--- info:', 'info');
-    print('  ping       check server latency'),
+    print('balance: ' + (ME ? ME.balance : 0) + '$', 'ok');
+    print('hacks: ' + (ME ? ME.hacks : 0) + '  rank: ' + rankOf(ME ? ME.hacks : 0) + '  income: ' + incomeOf(ME ? ME.hacks : 0) + '$/10s', 'dim');
     return;
   }
   if (c === 'color') {
-    if (!(arg in COLORS)) { print('usage: color [0-9]  (0 green,1 white,2 cyan,3 magenta,4 yellow,5 red,6 blue,7 orange,8 purple,9 gray)', 'err'); return; }
-    termColor = arg; localStorage.setItem('hc_term_color', arg); applyColor();
-    print(`terminal color set to ${arg}`, 'ok'); return;
-  }
-  if (c === 'install') {
-    const pkg = arg.toLowerCase();
-    if (pkg === 'mullvad') {
-      if (vpn.purchased) {
-        // Permanent mullvad - connect to first country
-        vpn.active = true;
-        print('mullvad vpn activated ✓', 'ok');
-        print(`connected to: ${MULLVAD_NETWORKS[0].country}`, 'info');
-        vpnConnectHandler();
-        return;
-      }
-      // Free 1-minute mullvad
-      if (!vpn.active) {
-        vpn.active = true;
-        print('mullvad vpn activated (free 1 min)', 'ok');
-        // Auto-off after 1 minute
-        if (vpn.autoOffTimer) clearTimeout(vpn.autoOffTimer);
-        vpn.autoOffTimer = setTimeout(() => {
-          vpn.active = false;
-          print('mullvad vpn disconnected (time expired)', 'dim');
-          $('vpnStatus').textContent = 'vpn inactive';
-        }, 60000);
-        $('vpnStatus').textContent = 'vpn active - will auto-off in 1 min';
-        vpnConnectHandler();
-        print('type: vpn to disconnect early', 'info');
-      } else {
-        print('mullvad vpn already active', 'ok');
-      }
+    if (!COLORS[arg]) {
+      print('usage: color [0-9]  0 green 1 white 2 cyan 3 magenta 4 yellow 5 red 6 blue 7 orange 8 purple 9 gray', 'err');
       return;
     }
-    if (!['bruce', 'nos'].includes(pkg)) { print('packages: bruce, nos, mullvad', 'err'); return; }
-    if (installed[pkg]) { print(`${pkg} already installed. type ${pkg} to run.`, 'ok'); return; }
-    print(`fetching ${pkg} from grid mirror...`, 'dim');
-    progressBar(`installing ${pkg}`, 2600, () => {
+    termColor = arg;
+    localStorage.setItem('hc_term_color', arg);
+    applyColor();
+    print('terminal color set to ' + arg, 'ok');
+    return;
+  }
+  if (c === 'net' || c === 'internet') { $('netBtn').click(); return; }
+  if (c === 'vpn') { $('vpnBtn').click(); return; }
+  if (c === 'mullvad') { $('mullvadBtn').click(); return; }
+  if (c === 'install') {
+    var pkg = arg.toLowerCase();
+    if (pkg === 'mullvad') {
+      $('mullvadBtn').classList.remove('hidden');
+      print('fetching mullvad vpn client from grid mirror...', 'dim');
+      progressBar('installing mullvad', 2200, function () {
+        print('mullvad installed. click the MUL button in the top bar.', 'ok');
+        renderMullvadList();
+        $('mullvadModal').classList.remove('hidden');
+      });
+      return;
+    }
+    if (pkg !== 'bruce' && pkg !== 'nos') { print('packages: bruce, nos, mullvad', 'err'); return; }
+    if (installed[pkg]) { print(pkg + ' already installed. type ' + pkg + ' to run.', 'ok'); return; }
+    print('fetching ' + pkg + ' from grid mirror...', 'dim');
+    progressBar('installing ' + pkg, 2200, function () {
       installed[pkg] = true;
       localStorage.setItem('hc_installed', JSON.stringify(installed));
-      print(`${pkg} installed. type ${pkg} to launch.`, 'ok');
+      print(pkg + ' installed. type ' + pkg + ' to launch.', 'ok');
     });
     return;
   }
@@ -357,12 +541,14 @@ async function handleCommand(raw) {
     print('DATABASE deck requires password:', 'info');
     return;
   }
-  print(`unknown command: ${c}  (try help)`, 'err');
+  print('unknown command: ' + c + '  (try help)', 'err');
 }
 
-async function handleState(raw) {
-  const m = TSTATE.mode, d = TSTATE.data;
-  // BRUCE
+/* ---------- terminal state machine ---------- */
+function handleState(raw) {
+  var m = TSTATE.mode;
+  var d = TSTATE.data;
+
   if (m === 'bruce_menu') {
     if (raw === '1') { TSTATE = { mode: 'bruce_port', data: {} }; print('target db port (4 digits):', 'info'); }
     else if (raw === '2') { TSTATE = { mode: 'idle', data: {} }; print('bruce closed.', 'dim'); }
@@ -371,33 +557,30 @@ async function handleState(raw) {
   }
   if (m === 'bruce_port') {
     print('resolving port...', 'dim');
-    try {
-      const r = await fetch('/api/bruce-init', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ port: raw }) });
-      const j = await r.json();
-      if (!r.ok) { print("port doesn't exist.", 'err'); TSTATE = { mode: 'idle', data: {} }; return; }
-      d.port = raw; d.host = j.host; d.username = j.username; d.duration = j.duration;
-      TSTATE = { mode: 'bruce_running', data: d };
-      print(`target: ${j.host} :: ${j.username}`, 'info');
-      print(`estimated time: ~${j.duration}s (adaptive to password strength)`, 'info');
-      print('cracking... do not close terminal', 'dim');
-      await runBruceCrack(d);
-    } catch { print('network error', 'err'); TSTATE = { mode: 'idle', data: {} }; }
+    fetch('/api/bruce-init', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ port: raw })
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (!res.ok) { print('port does not exist.', 'err'); TSTATE = { mode: 'idle', data: {} }; return; }
+        var j = res.j;
+        d.port = raw; d.host = j.host; d.username = j.username; d.duration = j.duration;
+        TSTATE = { mode: 'bruce_running', data: d };
+        print('target: ' + j.host + ' :: ' + j.username, 'info');
+        print('estimated time: ~' + j.duration + 's (adaptive to password strength)', 'info');
+        runCrack(d);
+      }).catch(function () { print('network error', 'err'); TSTATE = { mode: 'idle', data: {} }; });
     return;
   }
   if (m === 'bruce_result') {
     if (raw === '1') {
-      const p = `${d.host}/${d.port}/core/${d.username}`;
-      lastCopiedPath = p;
-      try { await navigator.clipboard.writeText('open ' + p); print('path copied to clipboard ✓  (also shown below)', 'ok'); }
-      catch { print('clipboard blocked — copy manually:', 'dim'); }
-      print('open ' + p, 'ok');
-      print(`now type: open ${p}`, 'info');
+      var p = d.host + '/' + d.port + '/core/' + d.username;
+      print('path copied: open ' + p, 'ok');
+      if (navigator.clipboard) navigator.clipboard.writeText('open ' + p).catch(function () {});
       TSTATE = { mode: 'idle', data: {} };
     } else if (raw === '2') { TSTATE = { mode: 'idle', data: {} }; print('bruce closed.', 'dim'); }
     else print('type 1 or 2', 'err');
     return;
   }
-  // NOS
   if (m === 'nos_menu') {
     if (raw === '1') { TSTATE = { mode: 'nos_host', data: {} }; print('target host (e.g. HC-XXXX-XXXX):', 'info'); }
     else if (raw === '2') { TSTATE = { mode: 'idle', data: {} }; print('nos closed.', 'dim'); }
@@ -405,40 +588,44 @@ async function handleState(raw) {
     return;
   }
   if (m === 'nos_host') {
-    print(`scanning ${raw} ...`, 'dim');
-    progressBar('nos sweep', 2200, async () => {
-      try {
-        const r = await fetch('/api/scan', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ host: raw }) });
-        const j = await r.json();
-        if (!r.ok) { print("host doesn't exist.", 'err'); TSTATE = { mode: 'idle', data: {} }; return; }
-        print(`host ${j.host} (${j.username}) — ${j.ports.length} ports found:`, 'ok');
-        j.ports.forEach(p => print(`  ${p.port}  ....  ${p.status.toUpperCase()}`, p.status === 'open' ? 'ok' : 'err'));
-        print('copy the OPEN port into bruce.', 'info');
-      } catch { print('network error', 'err'); }
-      TSTATE = { mode: 'idle', data: {} };
-    });
+    print('scanning ' + raw + ' ...', 'dim');
     TSTATE = { mode: 'nos_scanning', data: {} };
+    fetch('/api/scan', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ host: raw })
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (!res.ok) { print('host does not exist.', 'err'); TSTATE = { mode: 'idle', data: {} }; return; }
+        var j = res.j;
+        print('host ' + j.host + ' (' + j.username + ') - ' + j.ports.length + ' ports:', 'ok');
+        j.ports.forEach(function (p) { print('  ' + p.port + '  ....  ' + p.status.toUpperCase(), p.status === 'open' ? 'ok' : 'err'); });
+        print('copy the OPEN port into bruce.', 'info');
+        TSTATE = { mode: 'idle', data: {} };
+      }).catch(function () { print('network error', 'err'); TSTATE = { mode: 'idle', data: {} }; });
     return;
   }
   if (m === 'nos_scanning') { print('(scan in progress...)', 'dim'); return; }
-  // OPEN remote
   if (m === 'open_password') {
-    try {
-      const r = await fetch('/api/server-auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: d.path, password: raw }) });
-      const j = await r.json();
-      if (!r.ok) { print(j.error === 'WRONG_PASSWORD' ? 'wrong password.' : "path/port doesn't exist.", 'err'); TSTATE = { mode: 'idle', data: {} }; return; }
-      d.session = j;
-      TSTATE = { mode: 'server_menu', data: d };
-      print(`Welcome ${j.username}`, 'ok');
-      print('  1 - balance');
-      print('  2 - quit');
-    } catch { print('network error', 'err'); TSTATE = { mode: 'idle', data: {} }; }
+    fetch('/api/server-auth', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path: d.path, password: raw })
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (!res.ok) {
+          print(res.j.error === 'WRONG_PASSWORD' ? 'wrong password.' : 'path or port does not exist.', 'err');
+          TSTATE = { mode: 'idle', data: {} };
+          return;
+        }
+        d.session = res.j;
+        TSTATE = { mode: 'server_menu', data: d };
+        print('Welcome ' + res.j.username, 'ok');
+        print('  1 - balance');
+        print('  2 - quit');
+      }).catch(function () { print('network error', 'err'); TSTATE = { mode: 'idle', data: {} }; });
     return;
   }
   if (m === 'server_menu') {
     if (raw === '1') {
       TSTATE = { mode: 'server_balance', data: d };
-      print(`balance of ${d.session.username}: ${d.session.balance}$`, 'ok');
+      print('balance of ' + d.session.username + ': ' + d.session.balance + '$', 'ok');
       print('  1 - transfer');
       print('  2 - leak (wipe to 0)');
       print('  3 - quit');
@@ -447,312 +634,212 @@ async function handleState(raw) {
     return;
   }
   if (m === 'server_balance') {
-    if (raw === '1') { TSTATE = { mode: 'transfer_host', data: d }; print('destination host (yours or anyone):', 'info'); }
+    if (raw === '1') { TSTATE = { mode: 'transfer_host', data: d }; print('destination host:', 'info'); }
     else if (raw === '2') {
-      await fetch('/api/leak', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fromHost: d.session.host, byId: ME.id }) });
-      print('balance leaked. server wiped to 0$. hacks +1.', 'ok');
-      await refreshMe(); TSTATE = { mode: 'idle', data: {} };
-    }
-    else if (raw === '3') { TSTATE = { mode: 'idle', data: {} }; print('connection closed.', 'dim'); }
+      fetch('/api/leak', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fromHost: d.session.host, byId: ME ? ME.id : null })
+      }).then(function () {
+        print('balance leaked. server wiped to 0$. hacks +1.', 'ok');
+        refreshMe();
+      });
+      TSTATE = { mode: 'idle', data: {} };
+    } else if (raw === '3') { TSTATE = { mode: 'idle', data: {} }; print('connection closed.', 'dim'); }
     else print('type 1, 2 or 3', 'err');
     return;
   }
   if (m === 'transfer_host') {
-    try {
-      const r = await fetch('/api/transfer', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fromHost: d.session.host, toHost: raw, byId: ME.id }) });
-      const j = await r.json();
-      if (!r.ok) { print("destination host doesn't exist.", 'err'); TSTATE = { mode: 'idle', data: {} }; return; }
-      print(`transferred ${j.moved}$ → ${raw}. hacks +1. rank up? check profile.`, 'ok');
-      await refreshMe();
-    } catch { print('network error', 'err'); }
-    TSTATE = { mode: 'idle', data: {} };
+    fetch('/api/transfer', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fromHost: d.session.host, toHost: raw, byId: ME ? ME.id : null })
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (!res.ok) { print('destination host does not exist.', 'err'); TSTATE = { mode: 'idle', data: {} }; return; }
+        print('transferred ' + res.j.moved + '$ to ' + raw + '. hacks +1.', 'ok');
+        refreshMe();
+        TSTATE = { mode: 'idle', data: {} };
+      }).catch(function () { print('network error', 'err'); TSTATE = { mode: 'idle', data: {} }; });
     return;
   }
-  // DB admin
   if (m === 'db_password') {
-    try {
-      const r = await fetch('/api/admin/auth', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: raw }) });
-      const j = await r.json();
-      if (!r.ok) { print('access denied.', 'err'); TSTATE = { mode: 'idle', data: {} }; return; }
-      adminToken = j.token;
-      print('access granted. opening deck...', 'ok');
-      openAdmin();
-    } catch { print('network error', 'err'); }
-    TSTATE = { mode: 'idle', data: {} };
+    fetch('/api/admin/auth', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: raw })
+    }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (!res.ok) { print('access denied.', 'err'); TSTATE = { mode: 'idle', data: {} }; return; }
+        adminToken = res.j.token;
+        print('access granted. opening deck...', 'ok');
+        openAdmin();
+        TSTATE = { mode: 'idle', data: {} };
+      }).catch(function () { print('network error', 'err'); TSTATE = { mode: 'idle', data: {} }; });
     return;
   }
+  TSTATE = { mode: 'idle', data: {} };
 }
 
-async function runBruceCrack(d) {
-  const total = d.duration;
-  const line = document.createElement('div');
+function runCrack(d) {
+  var total = d.duration;
+  var line = document.createElement('div');
   line.className = 'l bar';
   term.appendChild(line);
-  const guesses = ['moon', 'shadow!', 'x42q', 'admin123', 'qwerty!', 'letme1n', 'dragon#9', ' TrustNo1', '0xdead', 'sunshine!7'];
-  const start = Date.now();
-  let gi = 0;
-  await new Promise((resolve) => {
-    const iv = setInterval(() => {
-      const el = (Date.now() - start) / 1000;
-      const p = Math.min(1, el / total);
-      const left = Math.max(0, Math.ceil(total - el));
-      line.textContent = `guessing [${'█'.repeat(Math.floor(p * 24))}${'░'.repeat(24 - Math.floor(p * 24))}] ${Math.floor(p * 100)}%  ~${left}s left  try: ${guesses[gi++ % guesses.length]}${Math.floor(Math.random() * 999)}`;
-      term.scrollTop = term.scrollHeight;
-      if (p >= 1) { clearInterval(iv); resolve(); }
-    }, 200);
-  });
-  try {
-    const r = await fetch('/api/bruce-reveal', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ port: d.port }) });
-    const j = await r.json();
-    if (!r.ok) { print("port doesn't exist.", 'err'); TSTATE = { mode: 'idle', data: {} }; return; }
-    d.password = j.password;
-    print('PASSWORD CRACKED:', 'ok');
-    print(`  >>> ${j.password} <<<`, 'info');
-    print(`owner: ${j.username} @ ${j.host}`, 'dim');
-    print('  1 - copy path');
-    print('  2 - quit');
-    TSTATE = { mode: 'bruce_result', data: d };
-  } catch { print('network error', 'err'); TSTATE = { mode: 'idle', data: {} }; }
+  var guesses = ['moon', 'shadow', 'admin', 'dragon', 'trustno', 'qwert', 'letmein', 'sunshine', 'master', 'access'];
+  var start = Date.now();
+  var gi = 0;
+  var iv = setInterval(function () {
+    var el = (Date.now() - start) / 1000;
+    var p = Math.min(1, el / total);
+    var left = Math.max(0, Math.ceil(total - el));
+    var n = Math.floor(p * 24);
+    line.textContent = 'guessing [' + repeat('█', n) + repeat('░', 24 - n) + '] ' + Math.floor(p * 100) +
+      '%  ~' + left + 's left  try: ' + guesses[gi++ % guesses.length] + Math.floor(Math.random() * 999);
+    term.scrollTop = term.scrollHeight;
+    if (p >= 1) {
+      clearInterval(iv);
+      fetch('/api/bruce-reveal', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ port: d.port })
+      }).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+        .then(function (res) {
+          if (!res.ok) { print('port does not exist.', 'err'); TSTATE = { mode: 'idle', data: {} }; return; }
+          d.password = res.j.password;
+          print('PASSWORD CRACKED:', 'ok');
+          print('  >>> ' + res.j.password + ' <<<', 'info');
+          print('owner: ' + res.j.username + ' @ ' + res.j.host, 'dim');
+          print('  1 - copy path');
+          print('  2 - quit');
+          TSTATE = { mode: 'bruce_result', data: d };
+        }).catch(function () { print('network error', 'err'); TSTATE = { mode: 'idle', data: {} }; });
+    }
+  }, 200);
 }
 
-/* ---------- ADMIN ---------- */
-async function openAdmin() {
+/* ---------- admin ---------- */
+function openAdmin() {
   $('adminWrap').classList.remove('hidden');
-  await loadAdmin();
+  loadAdmin();
 }
-$('adminClose').onclick = () => $('adminWrap').classList.add('hidden');
-async function loadAdmin() {
-  const box = $('adminList'); box.innerHTML = 'loading...';
-  const r = await fetch('/api/admin/users?token=' + encodeURIComponent(adminToken));
-  const users = await r.json();
-  box.innerHTML = '';
-  users.forEach(u => {
-    const row = document.createElement('div');
-    row.className = 'admin-row';
-    row.innerHTML = `<img src="${esc(u.avatar || defaultAvatar(u.name))}"/><div class="grow"><b>${esc(u.name)}</b><div style="font-size:12px">${esc(u.host)} · ${esc(u.rank)} · ${u.hacks} hacks</div></div>`;
-    const inp = document.createElement('input');
-    inp.type = 'number'; inp.value = u.balance;
-    const set = document.createElement('button'); set.className = 'btn-set'; set.textContent = 'set $';
-    set.onclick = async () => {
-      await fetch('/api/admin/set-balance', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: adminToken, userId: u.id, balance: Number(inp.value) }) });
-      toast('balance updated'); loadAdmin();
-    };
-    const ban = document.createElement('button'); ban.className = 'btn-ban'; ban.textContent = 'ban';
-    ban.onclick = async () => {
-      if (!confirm('Ban ' + u.name + '? Their device account resets on next open.')) return;
-      await fetch('/api/admin/ban', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: adminToken, userId: u.id }) });
-      toast('user banned'); loadAdmin();
-    };
-    row.append(inp, set, ban);
-    box.appendChild(row);
-  });
+$('adminClose').onclick = function () { $('adminWrap').classList.add('hidden'); };
+function loadAdmin() {
+  var box = $('adminList');
+  box.innerHTML = 'loading...';
+  fetch('/api/admin/users?token=' + encodeURIComponent(adminToken))
+    .then(function (r) { return r.json(); })
+    .then(function (users) {
+      box.innerHTML = '';
+      users.forEach(function (u) {
+        var row = document.createElement('div');
+        row.className = 'admin-row';
+        row.innerHTML = '<img src="' + esc(u.avatar || defaultAvatar(u.name)) + '"/><div class="grow"><b>' +
+          esc(u.name) + '</b><div style="font-size:12px">' + esc(u.host) + ' - ' + esc(u.rank) + ' - ' +
+          u.hacks + ' hacks</div></div>';
+        var inp = document.createElement('input');
+        inp.type = 'number';
+        inp.value = u.balance;
+        var set = document.createElement('button');
+        set.className = 'btn-set'; set.textContent = 'set $';
+        set.onclick = function () {
+          fetch('/api/admin/set-balance', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: adminToken, userId: u.id, balance: Number(inp.value) })
+          }).then(function () { toast('balance updated'); loadAdmin(); });
+        };
+        var ban = document.createElement('button');
+        ban.className = 'btn-ban'; ban.textContent = 'ban';
+        ban.onclick = function () {
+          if (!confirm('Ban ' + u.name + '? Their device account resets on next open.')) return;
+          fetch('/api/admin/ban', {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token: adminToken, userId: u.id })
+          }).then(function () { toast('user banned'); loadAdmin(); });
+        };
+        row.appendChild(inp);
+        row.appendChild(set);
+        row.appendChild(ban);
+        box.appendChild(row);
+      });
+    });
 }
 
-/* ---------- ACCOUNT (FREE-tier self-heal: full backup lives on device) ---------- */
-function saveBackup() {
-  try {
-    if (ME) localStorage.setItem('hc_backup', JSON.stringify({
-      id: ME.id, name: ME.name, avatar: ME.avatar, host: ME.host,
-      openPort: ME.openPort, balance: ME.balance, hacks: ME.hacks,
-      createdAt: ME.createdAt, serverPassword: localStorage.getItem('hc_pass') || ''
-    }));
-  } catch {}
-}
-function getBackup() {
-  try { return JSON.parse(localStorage.getItem('hc_backup') || 'null'); } catch { return null; }
-}
-async function boot() {
+/* ---------- terminal input ---------- */
+termInput.addEventListener('keydown', function (e) {
+  if (e.key !== 'Enter') return;
+  var raw = termInput.value;
+  termInput.value = '';
+  print('> ' + raw, 'info');
+  if (TSTATE.mode !== 'idle') handleState(raw.trim());
+  else handleCommand(raw.trim());
+});
+
+/* ---------- boot ---------- */
+function boot() {
   bootTerm();
-  // instant chat from device cache (survives server sleep/wipe)
   try {
-    const cached = JSON.parse(localStorage.getItem('hc_chat') || '[]');
+    var cached = JSON.parse(localStorage.getItem('hc_chat') || '[]');
     if (cached.length) { $('messages').innerHTML = ''; cached.forEach(addMsg); }
-  } catch {}
-  // keep free server awake while anyone is online
-  setInterval(() => fetch('/api/ping').catch(() => {}), 5 * 60 * 1000);
-  // tab visibility: pause mining when background, resume when foreground
-  (() => {
-    const state = { active: !document.hidden };
-    document.addEventListener('visibilitychange', () => { state.active = !document.hidden; });
-    const hook = () => { if (socket && socket.data && socket.data.userId) { socket.emit('tab:active', { userId: socket.data.userId, active: state.active }); } };
-    // run once on load and on every interval check
-    hook(); setInterval(hook, 20000);
-  })();
-  let id = localStorage.getItem('hc_id');
-  if (id) {
-    try {
-      const chk = await (await fetch('/api/check/' + id)).json();
-      if (chk.banned) {
-        ['hc_id', 'hc_backup', 'hc_pass', 'hc_installed'].forEach(k => localStorage.removeItem(k));
-        installed = {}; toast('account reset'); $('onboard').classList.remove('hidden'); return;
-      }
-      if (chk.exists) {
-        ME = await (await fetch('/api/me/' + id)).json();
-        enterApp(); return;
-      }
-      // server wiped (free sleep/redeploy) -> silently restore from device backup
-      const b = getBackup();
-      if (b && b.serverPassword) {
-        const r = await fetch('/api/account', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b) });
-        const j = await r.json();
+  } catch (e) {}
+  setInterval(function () { fetch('/api/ping').catch(function () {}); }, 4 * 60 * 1000);
+  var id = localStorage.getItem('hc_id');
+  if (!id) { $('onboard').classList.remove('hidden'); return; }
+  fetch('/api/check/' + id).then(function (r) { return r.json(); }).then(function (chk) {
+    if (chk.banned) {
+      ['hc_id', 'hc_backup', 'hc_pass', 'hc_installed'].forEach(function (k) { localStorage.removeItem(k); });
+      installed = {};
+      $('onboard').classList.remove('hidden');
+      toast('account reset');
+      return;
+    }
+    if (chk.exists) {
+      fetch('/api/me/' + id).then(function (r) { return r.json(); }).then(function (j) {
+        ME = j;
+        enterApp();
+        sendTabState();
+        setInterval(sendTabState, 15000);
+      });
+      return;
+    }
+    var b = getBackup();
+    if (b && b.serverPassword) {
+      fetch('/api/account', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(b)
+      }).then(function (r) { return r.json(); }).then(function (j) {
         if (!j.error && !j.banned) {
           localStorage.setItem('hc_id', j.id);
-          ME = j; saveBackup();
-          print(`session restored: ${j.name} @ ${j.host}`, 'ok');
-          enterApp(); return;
+          ME = j;
+          saveBackup();
+          print('session restored: ' + j.name + ' @ ' + j.host, 'ok');
+          enterApp();
+          sendTabState();
+          setInterval(sendTabState, 15000);
+          return;
         }
-      }
-    } catch {}
-  }
-  $('onboard').classList.remove('hidden');
+        $('onboard').classList.remove('hidden');
+      }).catch(function () { $('onboard').classList.remove('hidden'); });
+      return;
+    }
+    $('onboard').classList.remove('hidden');
+  }).catch(function () { $('onboard').classList.remove('hidden'); });
 }
-$('obGo').onclick = async () => {
-  const name = $('obName').value.trim() || ('anon' + Math.floor(Math.random() * 9999));
-  const pass = $('obPass').value;
+
+$('obGo').onclick = function () {
+  var name = $('obName').value.trim() || ('anon' + Math.floor(Math.random() * 9999));
+  var pass = $('obPass').value;
   if (pass.length < 3) { toast('server password min 3 chars'); return; }
-  const id = localStorage.getItem('hc_id') || (Math.random().toString(16).slice(2) + Date.now().toString(16));
-  const r = await fetch('/api/account', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id, name, avatar: defaultAvatar(name), serverPassword: pass }) });
-  const j = await r.json();
-  if (j.banned) { localStorage.removeItem('hc_id'); location.reload(); return; }
-  if (j.error) { toast(j.error); return; }
-  localStorage.setItem('hc_id', j.id);
-  localStorage.setItem('hc_pass', pass);
-  ME = j; saveBackup();
-  $('onboard').classList.add('hidden');
-  print(`identity forged: ${j.name} @ ${j.host}`, 'ok');
-  enterApp();
-};
-
-async function refreshMe() {
-  if (!ME) return;
-  try { ME = await (await fetch('/api/me/' + ME.id)).json(); renderMe(); } catch { }
-}
-function cacheChat() {
-  try {
-    const items = [...$('messages').children].slice(-60).map(el => el._msg).filter(Boolean);
-    localStorage.setItem('hc_chat', JSON.stringify(items));
-  } catch {}
-}
-function renderMe() {
-  if (!ME) return;
-  saveBackup();
-  $('meName').textContent = ME.name;
-  $('meHost').textContent = ME.host;
-  $('meBalance').textContent = ME.balance;
-  $('meAvatar').src = ME.avatar || defaultAvatar(ME.name);
-  const r = $('meRank'); r.textContent = rankOf(ME.hacks); r.className = 'rank-badge ' + rankOf(ME.hacks);
-  $('selfHostBox').textContent = `server: ${ME.host} · port: ${ME.openPort || '???'} · income ${incomeOf(ME.hacks)}$/10s · ${ME.hacks} hacks`;
-}
-function enterApp() {
-  renderMe();
-  socket.emit('presence:online', { userId: ME.id });
-  socket.on(`balance:${ME.id}`, ({ balance }) => { ME.balance = balance; $('meBalance').textContent = balance; saveBackup(); });
-}
-
-/* ---------- CHAT ---------- */
-function msgEl(m) {
-  const mine = ME && m.userId === ME.id;
-  const d = document.createElement('div');
-  d.className = 'msg' + (mine ? ' mine' : '');
-  const av = m.avatar || defaultAvatar(m.name);
-  d.innerHTML = `<img class="av" src="${esc(av)}"/><div class="bubble"><div class="who">${esc(m.name)} <time>${new Date(m.ts).toLocaleTimeString()}</time></div><div class="text">${esc(m.text)}</div></div>`;
-  d.querySelector('.av').onclick = () => openProfile(m.userId);
-  d.querySelector('.who').onclick = () => openProfile(m.userId);
-  if (m.image) {
-    const im = document.createElement('img');
-    im.className = 'photo'; im.src = m.image; im.loading = 'lazy';
-    d.querySelector('.bubble').appendChild(im);
-  }
-  if (!m.text) d.querySelector('.text').remove();
-  return d;
-}
-function addMsg(m) {
-  const box = $('messages');
-  const el = msgEl(m);
-  el._msg = { id: m.id, userId: m.userId, name: m.name, avatar: (m.avatar || '').slice(0, 200000), text: m.text, image: (m.image || '').slice(0, 1000000), ts: m.ts };
-  box.appendChild(el);
-  while (box.children.length > 200) box.firstChild.remove();
-  box.scrollTop = box.scrollHeight;
-  cacheChat();
-}
-socket.on('chat:history', (arr) => { $('messages').innerHTML = ''; arr.forEach(addMsg); });
-socket.on('chat:message', addMsg);
-socket.on('users:list', (arr) => {
-  usersById = {}; usersByHost = {};
-  arr.forEach(u => { usersById[u.id] = u; usersByHost[u.host] = u; });
-  $('onlineCount').textContent = arr.length + ' nodes';
-  if (ME && usersById[ME.id]) { ME.balance = usersById[ME.id].balance; ME.hacks = usersById[ME.id].hacks; ME.name = usersById[ME.id].name; ME.avatar = usersById[ME.id].avatar; renderMe(); }
-});
-socket.on('user:banned', ({ id }) => {
-  if (ME && id === ME.id) { localStorage.removeItem('hc_id'); toast('you were banned — reloading fresh'); setTimeout(() => location.reload(), 1200); }
-});
-
-async function sendText() {
-  const t = $('msgInput').value.trim();
-  if (!t || !ME) return;
-  $('msgInput').value = '';
-  socket.emit('chat:message', { userId: ME.id, text: t }, (ack) => { if (ack && ack.error) toast(ack.error); });
-}
-$('sendBtn').onclick = sendText;
-$('msgInput').addEventListener('keydown', e => { if (e.key === 'Enter') sendText(); });
-
-function fileToDataUrl(file, max = 800) {
-  return new Promise((res, rej) => {
-    const img = new Image();
-    const url = URL.createObjectURL(file);
-    img.onload = () => {
-      const scale = Math.min(1, max / Math.max(img.width, img.height));
-      const cv = document.createElement('canvas');
-      cv.width = img.width * scale; cv.height = img.height * scale;
-      cv.getContext('2d').drawImage(img, 0, 0, cv.width, cv.height);
-      URL.revokeObjectURL(url);
-      res(cv.toDataURL('image/jpeg', 0.72));
-    };
-    img.onerror = rej;
-    img.src = url;
+  var id = localStorage.getItem('hc_id') || (Math.random().toString(16).slice(2) + Date.now().toString(16));
+  fetch('/api/account', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ id: id, name: name, avatar: defaultAvatar(name), serverPassword: pass })
+  }).then(function (r) { return r.json(); }).then(function (j) {
+    if (j.banned) { localStorage.removeItem('hc_id'); location.reload(); return; }
+    if (j.error) { toast(j.error); return; }
+    localStorage.setItem('hc_id', j.id);
+    localStorage.setItem('hc_pass', pass);
+    ME = j;
+    saveBackup();
+    $('onboard').classList.add('hidden');
+    print('identity forged: ' + j.name + ' @ ' + j.host, 'ok');
+    enterApp();
+    sendTabState();
+    setInterval(sendTabState, 15000);
   });
-}
-$('imgInput').onchange = async (e) => {
-  const f = e.target.files[0]; if (!f || !ME) return;
-  const data = await fileToDataUrl(f);
-  socket.emit('chat:message', { userId: ME.id, text: '', image: data });
-  e.target.value = '';
-};
-
-/* ---------- PROFILE ---------- */
-async function openProfile(userId) {
-  const u = usersById[userId];
-  if (!u) return;
-  $('profilePane').classList.remove('hidden');
-  $('pfAvatar').src = u.avatar || defaultAvatar(u.name);
-  $('pfName').textContent = u.name;
-  $('pfRank').textContent = u.rank;
-  $('pfHost').textContent = u.host;
-  $('pfBalance').textContent = u.balance + '$';
-  $('pfHacks').textContent = u.hacks;
-  $('pfMining').textContent = incomeOf(u.hacks) + '$/10s';
-  const self = ME && userId === ME.id;
-  $('pfSelf').classList.toggle('hidden', !self);
-  if (self) { $('editName').value = ME.name; $('avatarUrl').value = ''; refreshMe(); }
-}
-$('profileBack').onclick = () => $('profilePane').classList.add('hidden');
-$('myProfileBtn').onclick = () => ME && openProfile(ME.id);
-$('mePill').onclick = () => ME && openProfile(ME.id);
-$('saveName').onclick = async () => {
-  const v = $('editName').value.trim(); if (!v) return;
-  await fetch('/api/me/' + ME.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: v }) });
-  toast('name updated'); refreshMe(); openProfile(ME.id);
-};
-$('saveAvatar').onclick = async () => {
-  const v = $('avatarUrl').value.trim(); if (!v) return;
-  await fetch('/api/me/' + ME.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ avatar: v }) });
-  toast('avatar updated'); refreshMe();
-};
-$('avatarFile').onchange = async (e) => {
-  const f = e.target.files[0]; if (!f) return;
-  const data = await fileToDataUrl(f, 256);
-  await fetch('/api/me/' + ME.id, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ avatar: data }) });
-  toast('avatar updated'); refreshMe(); openProfile(ME.id);
 };
 
 boot();

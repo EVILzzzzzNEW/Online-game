@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>HackChat</title>
+<link rel="icon" href="logo-mark.svg" type="image/svg+xml" />
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;800&family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css" />
@@ -16,6 +17,9 @@
 <header class="topbar">
   <div class="logo"><span class="logo-mark">>_</span> HACK<span>CHAT</span></div>
   <div class="top-right">
+    <button id="netBtn" class="net-btn" title="Internet connection"><span class="dot net-dot" id="netDot"></span><span class="net-label">NET</span></button>
+    <button id="vpnBtn" class="net-btn" title="VPN connection"><span class="dot vpn-dot" id="vpnDot"></span><span class="net-label">VPN</span></button>
+    <button id="mullvadBtn" class="net-btn mullvad-btn hidden" title="Mullvad VPN"><span class="mole">&#9681;</span><span class="net-label">MUL</span></button>
     <div class="me-pill" id="mePill">
       <img id="meAvatar" src="" alt="" />
       <div><div id="meName">...</div><div id="meHost" class="mono dim">...</div></div>
@@ -36,18 +40,17 @@
 
     <div class="chat-body" id="chatView">
       <div id="messages" class="messages"></div>
-      <!-- profile overlay inside chat tab -->
       <div id="profilePane" class="profile-pane hidden">
-        <button class="back-btn" id="profileBack">← back to chat</button>
+        <button class="back-btn" id="profileBack">&larr; back to chat</button>
         <div class="profile-card">
           <img id="pfAvatar" src="" alt="" />
-          <h2 id="pfName">—</h2>
+          <h2 id="pfName">-</h2>
           <div class="pf-rank" id="pfRank">rookie</div>
           <div class="pf-grid mono">
-            <div><label>HOST</label><span id="pfHost">—</span></div>
-            <div><label>BALANCE</label><span id="pfBalance">—</span></div>
-            <div><label>HACKS</label><span id="pfHacks">—</span></div>
-            <div><label>MINING</label><span id="pfMining">—</span></div>
+            <div><label>HOST</label><span id="pfHost">-</span></div>
+            <div><label>BALANCE</label><span id="pfBalance">-</span></div>
+            <div><label>HACKS</label><span id="pfHacks">-</span></div>
+            <div><label>MINING</label><span id="pfMining">-</span></div>
           </div>
           <div id="pfSelf" class="hidden">
             <div class="edit-row">
@@ -55,12 +58,11 @@
               <button id="saveName">save name</button>
             </div>
             <div class="edit-row">
-              <input id="avatarUrl" placeholder="avatar image url (or upload)" />
+              <input id="avatarUrl" placeholder="avatar image url" />
               <button id="saveAvatar">set</button>
             </div>
             <div class="edit-row">
               <label class="file-btn">upload avatar<input type="file" id="avatarFile" accept="image/*" hidden /></label>
-              <label class="file-btn">upload server key<input type="file" id="noop" hidden disabled /></label>
             </div>
             <div class="self-host mono" id="selfHostBox"></div>
           </div>
@@ -69,9 +71,9 @@
     </div>
 
     <div class="chat-input">
-      <button id="myProfileBtn" title="my profile">👤</button>
+      <button id="myProfileBtn" title="my profile">&#128100;</button>
       <input id="msgInput" maxlength="1000" placeholder="message the grid..." autocomplete="off" />
-      <label class="img-btn" title="send photo">📷<input type="file" id="imgInput" accept="image/*" hidden /></label>
+      <label class="img-btn" title="send photo">&#128247;<input type="file" id="imgInput" accept="image/*" hidden /></label>
       <button id="sendBtn">SEND</button>
     </div>
   </section>
@@ -85,7 +87,7 @@
     </div>
     <div id="term" class="term"></div>
     <div class="term-input-row">
-      <span class="prompt">➜</span>
+      <span class="prompt">&rsaquo;</span>
       <input id="termInput" autocomplete="off" spellcheck="false" placeholder="type a command..." />
     </div>
   </section>
@@ -99,25 +101,73 @@
     <p class="dim">Your account is saved on this device forever. No logins. First set your identity + a <b>server password</b> that protects your mining servers.</p>
     <label>display name</label>
     <input id="obName" maxlength="24" placeholder="e.g. zero_cool" />
-    <label>server password <small>(letters=weak, +symbols / +numbers = stronger & slower to hack)</small></label>
+    <label>server password <small>(letters=weak, +symbols / +numbers = stronger and slower to hack)</small></label>
     <input id="obPass" maxlength="64" placeholder="e.g. moon42!light" type="password" />
-    <button id="obGo">INITIALIZE →</button>
+    <button id="obGo">INITIALIZE &rarr;</button>
   </div>
 </div>
 
-<!-- ADMIN FLOATING MENU (white & blue) -->
+<!-- ADMIN FLOATING MENU (white and blue) -->
 <div id="adminWrap" class="admin-wrap hidden">
   <div class="admin-card">
     <div class="admin-head">
       <div><b>DATABASE</b> <span>control deck</span></div>
-      <button id="adminClose">✕ close</button>
+      <button id="adminClose">&#10005; close</button>
     </div>
-    <div class="admin-sub">All users on this HackChat instance. View / set balance. Ban wipes their device account on next open.</div>
+    <div class="admin-sub">All users on this HackChat instance. View and set balance. Ban wipes their device account on next open.</div>
     <div id="adminList" class="admin-list"></div>
   </div>
 </div>
 
+<!-- INTERNET CONNECTION MODAL -->
+<div id="netModal" class="modal-wrap hidden">
+  <div class="modal">
+    <div class="modal-logo">>_ NETWORK</div>
+    <h1>Available Networks</h1>
+    <p class="dim">Select a network. Some networks are locked - you can crack them from the terminal with <b>netcrack</b>.</p>
+    <div id="netNetworks" class="net-list"></div>
+    <div id="netPassRow" class="hidden">
+      <label>network password</label>
+      <input type="password" id="netPassInput" maxlength="64" placeholder="enter password" />
+    </div>
+    <button id="netConnectBtn">CONNECT</button>
+    <button id="netCancelBtn" class="btn-gray">Cancel</button>
+    <div id="netResult" class="net-result"></div>
+  </div>
+</div>
+
+<!-- VPN MODAL -->
+<div id="vpnModal" class="modal-wrap hidden">
+  <div class="modal">
+    <div class="modal-logo">>_ VPN</div>
+    <h1>Free VPN Tunnel</h1>
+    <p class="dim">Free tunnel runs for <b>60 seconds</b> then closes. Reconnect any time. Buy Mullvad for permanent access to every country.</p>
+    <button id="vpnConnectBtn">CONNECT FREE VPN</button>
+    <button id="vpnDisconnectBtn" class="btn-gray">Disconnect</button>
+    <div id="vpnInfo" class="net-result"></div>
+  </div>
+</div>
+
+<!-- MULLVAD MODAL -->
+<div id="mullvadModal" class="modal-wrap hidden">
+  <div class="modal mullvad-modal">
+    <div class="modal-logo mullvad-logo">MULLVAD</div>
+    <h1>Mullvad VPN</h1>
+    <p class="dim">Permanent VPN access. Pick any country to route your traffic.</p>
+    <div id="mullvadList" class="net-list"></div>
+    <div id="mullvadBuyRow">
+      <div class="buy-box">
+        <div class="buy-title">Buy Mullvad VPN - 10000$</div>
+        <div class="buy-note">Permanent. Unlimited countries. Never expires.</div>
+        <button id="mullvadBuyBtn">BUY FOR 10000$</button>
+      </div>
+    </div>
+    <button id="mullvadCloseBtn" class="btn-gray">Close</button>
+  </div>
+</div>
+
 <div id="toast" class="toast"></div>
+<div class="version-tag mono">V--0.2</div>
 
 <script src="app.js"></script>
 </body>
